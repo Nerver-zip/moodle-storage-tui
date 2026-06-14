@@ -157,6 +157,33 @@ public:
         }
     }
 
+    std::expected<models::StorageUsage, std::error_code> get_usage(const std::string& cookie) {
+        auto info = get_draft_info(cookie);
+        if (!info) return std::unexpected(info.error());
+
+        std::string client_id = "mstorage_" + info->itemid;
+        cpr::Payload payload{
+            {"sesskey", info->sesskey},
+            {"client_id", client_id},
+            {"filepath", "/"},
+            {"itemid", info->itemid}
+        };
+
+        auto response = client_.post(moodle_url_ + "/repository/draftfiles_ajax.php?action=list", payload, cpr::Cookies{{"MoodleSession", cookie}});
+        if (!response) return std::unexpected(response.error());
+
+        try {
+            auto j = nlohmann::json::parse(*response);
+            models::StorageUsage usage;
+            usage.used_bytes = j.value("filesize", 0);
+            usage.total_bytes = 100 * 1024 * 1024; // Default 100MB
+            return usage;
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to parse usage info: {}", e.what());
+            return std::unexpected(std::make_error_code(std::errc::bad_message));
+        }
+    }
+
     std::expected<void, std::error_code> download_file(const std::string& url, const std::string& output_path, const std::string& cookie) {
         spdlog::debug("Downloading from URL: {}", url);
         auto response = client_.get(url, cpr::Cookies{{"MoodleSession", cookie}});

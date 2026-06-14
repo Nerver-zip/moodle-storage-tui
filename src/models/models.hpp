@@ -30,4 +30,9 @@ struct MoodleFile {
     time_t datemodified;
 };
 
+struct StorageUsage {
+    uintmax_t used_bytes;
+    uintmax_t total_bytes;
+};
+
 } // namespace mstorage::models

@@ -6,6 +6,7 @@
 #include "commands/download_command.hpp"
 #include "commands/history_command.hpp"
 #include "commands/delete_command.hpp"
+#include "commands/usage_command.hpp"
 #include "mock_http_client.hpp"
 #include <filesystem>
 #include <fstream>
@@ -139,6 +140,22 @@ TEST_F(CommandTest, DeleteCommandOrchestration) {
     EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
 
     DeleteCommand cmd(client, sm, "to_delete.txt");
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(CommandTest, UsageCommandOrchestration) {
+    SessionManager sm;
+    MoodleClient client{mock_http, "https://moodle.test"};
+    
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+    
+    // 2. Expect list (to get filesize)
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=list"), _, _))
+        .WillOnce(Return(std::string(R"({"filesize": 52428800})"))); // 50MB
+
+    mstorage::commands::StorageUsageCommand cmd(client, sm);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }

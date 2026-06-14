@@ -11,6 +11,7 @@
 #include "commands/download_command.hpp"
 #include "commands/history_command.hpp"
 #include "commands/delete_command.hpp"
+#include "commands/usage_command.hpp"
 #include "tui/tui_application.hpp"
 #include <memory>
 
@@ -60,11 +61,14 @@ private:
 
         // History command
         app_.add_subcommand("history", "Show upload history");
+
+        // Usage command
+        app_.add_subcommand("usage", "Show Moodle storage usage");
     }
 
     int execute() {
         if (app_.got_subcommand("login")) {
-            commands::LoginCommand cmd(session_manager_, http_client_, login_url_, login_cookie_);
+            mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_, login_cookie_);
             return handle_result(cmd.execute(), "Login");
         } 
         
@@ -73,7 +77,7 @@ private:
             if (!session) return fail("Not logged in. Use 'login' command first.");
             
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_path_);
+            mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_path_);
             return handle_result(cmd.execute(), "Upload");
         }
 
@@ -82,7 +86,7 @@ private:
             if (!session) return fail("Not logged in.");
             
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            commands::ListCommand cmd(moodle_client, session_manager_);
+            mstorage::commands::ListCommand cmd(moodle_client, session_manager_);
             return handle_result(cmd.execute(), "List");
         }
 
@@ -91,7 +95,7 @@ private:
             if (!session) return fail("Not logged in.");
             
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            commands::DownloadCommand cmd(moodle_client, session_manager_, download_filename_);
+            mstorage::commands::DownloadCommand cmd(moodle_client, session_manager_, download_filename_);
             return handle_result(cmd.execute(), "Download");
         }
 
@@ -100,13 +104,22 @@ private:
             if (!session) return fail("Not logged in.");
             
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            commands::DeleteCommand cmd(moodle_client, session_manager_, delete_filename_);
+            mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_filename_);
             return handle_result(cmd.execute(), "Delete");
         }
 
         if (app_.got_subcommand("history")) {
-            commands::HistoryCommand cmd(history_manager_);
+            mstorage::commands::HistoryCommand cmd(history_manager_);
             return handle_result(cmd.execute(), "History");
+        }
+
+        if (app_.got_subcommand("usage")) {
+            auto session = session_manager_.load();
+            if (!session) return fail("Not logged in.");
+            
+            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
+            mstorage::commands::StorageUsageCommand cmd(moodle_client, session_manager_);
+            return handle_result(cmd.execute(), "Usage");
         }
 
         // TUI Mode (Default)
