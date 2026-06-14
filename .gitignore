@@ -1,0 +1,28 @@
+# Build
+build/
+bin/
+lib/
+compile_commands.json
+
+# IDEs e LSP
+.vscode/
+.idea/
+*.swp
+*.swo
+.cache/
+
+# Project specific
+mstorage.log
+tests/mstorage.log
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Dependencies (CPM)
+_deps/
+cmake/CPM_*.cmake
+
+# Local development files
+dev/
+.gemini/
