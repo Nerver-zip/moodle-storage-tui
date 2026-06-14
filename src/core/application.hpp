@@ -123,7 +123,7 @@ private:
         }
 
         // TUI Mode (Default)
-        tui::TuiApplication tui_app(session_manager_);
+        tui::TuiApplication tui_app(session_manager_, http_client_);
         tui_app.run();
         return 0;
     }
