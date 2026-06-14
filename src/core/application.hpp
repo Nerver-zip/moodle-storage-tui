@@ -59,7 +59,7 @@ private:
 
     int execute() {
         if (app_.got_subcommand("login")) {
-            commands::LoginCommand cmd(session_manager_, login_url_, login_cookie_);
+            commands::LoginCommand cmd(session_manager_, http_client_, login_url_, login_cookie_);
             return handle_result(cmd.execute(), "Login");
         } 
         
