@@ -51,8 +51,9 @@ target_link_libraries(${PROJECT_NAME}
     ftxui::screen
     ftxui::dom
     ftxui::component
-    SQLite3::SQLite3
+    ${SQLite3_LIBRARIES}
 )
+target_include_directories(${PROJECT_NAME} PRIVATE ${SQLite3_INCLUDE_DIRS})
 
 # Automatically copy compile_commands.json to root
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

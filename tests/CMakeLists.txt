@@ -11,8 +11,9 @@ target_link_libraries(unit_tests
     cpr::cpr
     nlohmann_json::nlohmann_json
     spdlog::spdlog
-    SQLite3::SQLite3
+    ${SQLite3_LIBRARIES}
 )
+target_include_directories(unit_tests PRIVATE ${SQLite3_INCLUDE_DIRS})
 
 include(GoogleTest)
 gtest_discover_tests(unit_tests)
