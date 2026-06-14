@@ -177,6 +177,30 @@ public:
         return {};
     }
 
+    std::expected<void, std::error_code> delete_file(const std::string& filename, const DraftInfo& info, const std::string& cookie) {
+        std::string client_id = "mstorage_" + info.itemid;
+        
+        nlohmann::json selected = nlohmann::json::array();
+        selected.push_back({
+            {"filepath", "/"},
+            {"filename", filename}
+        });
+
+        cpr::Payload payload{
+            {"sesskey", info.sesskey},
+            {"client_id", client_id},
+            {"filepath", "/"},
+            {"itemid", info.itemid},
+            {"selected", selected.dump()}
+        };
+
+        auto response = client_.post(moodle_url_ + "/repository/draftfiles_ajax.php?action=deleteselected", payload, cpr::Cookies{{"MoodleSession", cookie}});
+        if (!response) return std::unexpected(response.error());
+
+        spdlog::debug("Delete response: {}", *response);
+        return {};
+    }
+
 private:
     network::HttpClient& client_;
     std::string moodle_url_;

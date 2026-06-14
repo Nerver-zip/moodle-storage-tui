@@ -10,6 +10,7 @@
 #include "commands/list_command.hpp"
 #include "commands/download_command.hpp"
 #include "commands/history_command.hpp"
+#include "commands/delete_command.hpp"
 #include "tui/tui_application.hpp"
 #include <memory>
 
@@ -53,6 +54,10 @@ private:
         auto* download = app_.add_subcommand("download", "Download a file from Moodle");
         download->add_option("filename", download_filename_, "Name of the file to download")->required();
 
+        // Delete command
+        auto* del = app_.add_subcommand("delete", "Delete a file from Moodle");
+        del->add_option("filename", delete_filename_, "Name of the file to delete")->required();
+
         // History command
         app_.add_subcommand("history", "Show upload history");
     }
@@ -90,6 +95,15 @@ private:
             return handle_result(cmd.execute(), "Download");
         }
 
+        if (app_.got_subcommand("delete")) {
+            auto session = session_manager_.load();
+            if (!session) return fail("Not logged in.");
+            
+            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
+            commands::DeleteCommand cmd(moodle_client, session_manager_, delete_filename_);
+            return handle_result(cmd.execute(), "Delete");
+        }
+
         if (app_.got_subcommand("history")) {
             commands::HistoryCommand cmd(history_manager_);
             return handle_result(cmd.execute(), "History");
@@ -123,6 +137,7 @@ private:
     std::string login_url_, login_cookie_;
     std::string upload_file_path_;
     std::string download_filename_;
+    std::string delete_filename_;
 };
 
 } // namespace mstorage::core
