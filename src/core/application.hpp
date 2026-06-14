@@ -12,6 +12,7 @@
 #include "commands/history_command.hpp"
 #include "commands/delete_command.hpp"
 #include "commands/usage_command.hpp"
+#include "commands/mkdir_command.hpp"
 #include "tui/tui_application.hpp"
 #include <memory>
 
@@ -64,6 +65,10 @@ private:
 
         // Usage command
         app_.add_subcommand("usage", "Show Moodle storage usage");
+
+        // Mkdir command
+        auto* mkdir = app_.add_subcommand("mkdir", "Create a folder in Moodle");
+        mkdir->add_option("foldername", mkdir_foldername_, "Name of the new folder")->required();
     }
 
     int execute() {
@@ -122,6 +127,15 @@ private:
             return handle_result(cmd.execute(), "Usage");
         }
 
+        if (app_.got_subcommand("mkdir")) {
+            auto session = session_manager_.load();
+            if (!session) return fail("Not logged in.");
+            
+            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
+            mstorage::commands::MkdirCommand cmd(moodle_client, session_manager_, mkdir_foldername_);
+            return handle_result(cmd.execute(), "Mkdir");
+        }
+
         // TUI Mode (Default)
         tui::TuiApplication tui_app(session_manager_, http_client_);
         tui_app.run();
@@ -151,6 +165,7 @@ private:
     std::string upload_file_path_;
     std::string download_filename_;
     std::string delete_filename_;
+    std::string mkdir_foldername_;
 };
 
 } // namespace mstorage::core

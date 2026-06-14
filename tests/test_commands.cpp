@@ -7,6 +7,7 @@
 #include "commands/history_command.hpp"
 #include "commands/delete_command.hpp"
 #include "commands/usage_command.hpp"
+#include "commands/mkdir_command.hpp"
 #include "mock_http_client.hpp"
 #include <filesystem>
 #include <fstream>
@@ -158,4 +159,23 @@ TEST_F(CommandTest, UsageCommandOrchestration) {
     mstorage::commands::StorageUsageCommand cmd(client, sm);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
-}
+    }
+
+    TEST_F(CommandTest, MkdirCommandOrchestration) {
+    SessionManager sm;
+    MoodleClient client{mock_http, "https://moodle.test"};
+
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+
+    // 2. Expect mkdir
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=mkdir"), _, _))
+        .WillOnce(Return(std::string("{}")));
+
+    // 3. Expect commit
+    EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
+
+    mstorage::commands::MkdirCommand cmd(client, sm, "new_folder");
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+    }

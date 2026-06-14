@@ -204,6 +204,22 @@ public:
         return {};
     }
 
+    std::expected<void, std::error_code> create_folder(const std::string& folder_name, const DraftInfo& info, const std::string& cookie) {
+        spdlog::debug("Creating folder: {} in draft area: {}", folder_name, info.itemid);
+
+        cpr::Payload payload{
+            {"sesskey", info.sesskey},
+            {"itemid", info.itemid},
+            {"filepath", "/"},
+            {"newdirname", folder_name}
+        };
+
+        auto response = client_.post(moodle_url_ + "/repository/draftfiles_ajax.php?action=mkdir", payload, cpr::Cookies{{"MoodleSession", cookie}});
+        if (!response) return std::unexpected(response.error());
+
+        return {};
+    }
+
     std::expected<void, std::error_code> delete_file(const std::string& filename, const DraftInfo& info, const std::string& cookie) {
         std::string client_id = "mstorage_" + info.itemid;
         
