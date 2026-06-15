@@ -48,6 +48,7 @@ private:
         // Upload command
         auto* upload = app_.add_subcommand("upload", "Upload a file to Moodle");
         upload->add_option("file", upload_file_path_, "Path to the file")->required();
+        upload->add_option("-p,--path", upload_remote_path_, "Target remote path in Moodle")->default_val("/");
 
         // List command
         app_.add_subcommand("list", "List files in Moodle private area");
@@ -57,8 +58,10 @@ private:
         download->add_option("filename", download_filename_, "Name of the file to download")->required();
 
         // Delete command
-        auto* del = app_.add_subcommand("delete", "Delete a file from Moodle");
-        del->add_option("filename", delete_filename_, "Name of the file to delete")->required();
+        auto* del = app_.add_subcommand("delete", "Delete a file or folder from Moodle");
+        del->add_option("name", delete_target_name_, "Name of the file or folder to delete")->required();
+        del->add_flag("-r,--recursive", delete_recursive_, "Delete folder recursively");
+        del->add_option("-p,--path", delete_remote_path_, "Path where the item is located")->default_val("/");
 
         // History command
         app_.add_subcommand("history", "Show upload history");
@@ -80,9 +83,9 @@ private:
         if (app_.got_subcommand("upload")) {
             auto session = session_manager_.load();
             if (!session) return fail("Not logged in. Use 'login' command first.");
-            
+
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_path_);
+            mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_path_, upload_remote_path_);
             return handle_result(cmd.execute(), "Upload");
         }
 
@@ -109,7 +112,7 @@ private:
             if (!session) return fail("Not logged in.");
             
             moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
-            mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_filename_);
+            mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_target_name_, delete_remote_path_, delete_recursive_);
             return handle_result(cmd.execute(), "Delete");
         }
 
@@ -162,9 +165,10 @@ private:
 
     // CLI Options
     std::string login_url_, login_cookie_;
-    std::string upload_file_path_;
+    std::string upload_file_path_, upload_remote_path_;
     std::string download_filename_;
-    std::string delete_filename_;
+    std::string delete_target_name_, delete_remote_path_;
+    bool delete_recursive_ = false;
     std::string mkdir_foldername_;
 };
 

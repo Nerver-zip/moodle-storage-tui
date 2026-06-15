@@ -51,9 +51,8 @@ TEST_F(MoodleClientTest, GetDraftInfoMissingSesskey) {
 TEST_F(MoodleClientTest, UploadFileSuccess) {
     MoodleClient::DraftInfo info{"key", "item", "ctx"};
     
-    EXPECT_CALL(mock_http, post_multipart(_, _, _))
-        .WillOnce(Return(std::string("{\"status\": \"ok\"}")));
+    EXPECT_CALL(mock_http, post_multipart(_, _, _)).WillOnce(Return(std::string("{}")));
 
-    auto result = client.upload_file("CMakeLists.txt", info, "cookie");
+    auto result = client.upload_file("CMakeLists.txt", "/", info, "cookie");
     EXPECT_TRUE(result.has_value());
 }

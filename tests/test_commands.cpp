@@ -140,7 +140,26 @@ TEST_F(CommandTest, DeleteCommandOrchestration) {
     // 3. Expect commit_draft
     EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
 
-    DeleteCommand cmd(client, sm, "to_delete.txt");
+    mstorage::commands::DeleteCommand cmd(client, sm, "to_delete.txt", "/", false);
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(CommandTest, DeleteCommandFolderOrchestration) {
+    SessionManager sm;
+    MoodleClient client{mock_http, "https://moodle.test"};
+    
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+    
+    // 2. Expect delete_file (folder payload)
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=deleteselected"), _, _))
+        .WillOnce(Return(std::string("{}")));
+        
+    // 3. Expect commit_draft
+    EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
+
+    mstorage::commands::DeleteCommand cmd(client, sm, "folder_to_delete", "/", true);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }
@@ -179,3 +198,32 @@ TEST_F(CommandTest, UsageCommandOrchestration) {
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
     }
+
+    TEST_F(CommandTest, UploadCommandWithPathOrchestration) {
+    SessionManager sm;
+    mstorage::storage::HistoryManager hm(":memory:");
+    MoodleClient client{mock_http, "https://moodle.test"};
+
+    std::string test_file = temp_dir / "path_test.txt";
+    std::ofstream(test_file) << "content";
+
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+
+    // 2. Expect mkdir for "a" and "b"
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=mkdir"), _, _))
+        .Times(2)
+        .WillRepeatedly(Return(std::string("{}")));
+
+    // 3. Expect upload_file (multipart) to path "/a/b/"
+    EXPECT_CALL(mock_http, post_multipart(std::string("https://moodle.test/repository/repository_ajax.php?action=upload"), _, _))
+        .WillOnce(Return(std::string("{}")));
+
+    // 4. Expect commit
+    EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
+
+    UploadCommand cmd(client, sm, hm, test_file, "/a/b/");
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+    }
+

@@ -65,7 +65,7 @@ public:
         return info;
     }
 
-    std::expected<void, std::error_code> upload_file(const std::string& file_path, const DraftInfo& info, const std::string& cookie) {
+    std::expected<void, std::error_code> upload_file(const std::string& file_path, const std::string& remote_path, const DraftInfo& info, const std::string& cookie) {
         std::string client_id = "mstorage_" + info.itemid; // Simple deterministic client_id
         
         cpr::Multipart multipart{
@@ -79,7 +79,7 @@ public:
             {"maxbytes", "104857600"},
             {"areamaxbytes", "104857600"},
             {"ctx_id", info.contextid},
-            {"savepath", "/"},
+            {"savepath", remote_path},
             {"repo_upload_file", cpr::File{file_path}},
             {"title", std::filesystem::path(file_path).filename().string()},
             {"author", "Moodle Storage TUI"},
@@ -204,13 +204,13 @@ public:
         return {};
     }
 
-    std::expected<void, std::error_code> create_folder(const std::string& folder_name, const DraftInfo& info, const std::string& cookie) {
-        spdlog::debug("Creating folder: {} in draft area: {}", folder_name, info.itemid);
+    std::expected<void, std::error_code> create_folder(const std::string& folder_name, const std::string& parent_path, const DraftInfo& info, const std::string& cookie) {
+        spdlog::debug("Creating folder: {} in path: {} (draft area: {})", folder_name, parent_path, info.itemid);
 
         cpr::Payload payload{
             {"sesskey", info.sesskey},
             {"itemid", info.itemid},
-            {"filepath", "/"},
+            {"filepath", parent_path},
             {"newdirname", folder_name}
         };
 
@@ -220,19 +220,37 @@ public:
         return {};
     }
 
-    std::expected<void, std::error_code> delete_file(const std::string& filename, const DraftInfo& info, const std::string& cookie) {
+    std::expected<void, std::error_code> delete_item(const std::string& item_name, const std::string& parent_path, bool is_folder, const DraftInfo& info, const std::string& cookie) {
         std::string client_id = "mstorage_" + info.itemid;
         
         nlohmann::json selected = nlohmann::json::array();
+        
+        std::string target_filename;
+        std::string target_filepath;
+
+        if (is_folder) {
+            target_filename = ".";
+            // Ensure folder path ends with /
+            target_filepath = parent_path + item_name;
+            if (target_filepath.back() != '/') {
+                target_filepath += "/";
+            }
+        } else {
+            target_filename = item_name;
+            target_filepath = parent_path;
+        }
+
+        spdlog::debug("Deleting item: filename={}, filepath={} from draft area: {}", target_filename, target_filepath, info.itemid);
+
         selected.push_back({
-            {"filepath", "/"},
-            {"filename", filename}
+            {"filepath", target_filepath},
+            {"filename", target_filename}
         });
 
         cpr::Payload payload{
             {"sesskey", info.sesskey},
             {"client_id", client_id},
-            {"filepath", "/"},
+            {"filepath", parent_path},
             {"itemid", info.itemid},
             {"selected", selected.dump()}
         };

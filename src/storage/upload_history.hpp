@@ -12,10 +12,15 @@ namespace mstorage::storage {
 
 class HistoryManager {
 public:
-    HistoryManager() {
-        auto config_path = std::filesystem::path(getenv("HOME")) / ".config" / "mstorage";
-        std::filesystem::create_directories(config_path);
-        db_path_ = (config_path / "uploads.db").string();
+    HistoryManager(std::string db_path = "") {
+        if (db_path.empty()) {
+            auto home = getenv("HOME");
+            auto config_path = std::filesystem::path(home ? home : ".") / ".config" / "mstorage";
+            std::filesystem::create_directories(config_path);
+            db_path_ = (config_path / "uploads.db").string();
+        } else {
+            db_path_ = std::move(db_path);
+        }
         init_db();
     }
 

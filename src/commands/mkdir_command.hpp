@@ -20,7 +20,7 @@ public:
         if (!draft_info) return std::unexpected(draft_info.error());
 
         std::cout << "Creating folder: " << folder_name_ << "\n";
-        auto mkdir_result = moodle_client_.create_folder(folder_name_, *draft_info, session->cookie);
+        auto mkdir_result = moodle_client_.create_folder(folder_name_, "/", *draft_info, session->cookie);
         if (!mkdir_result) return std::unexpected(mkdir_result.error());
 
         std::cout << "Committing changes...\n";
