@@ -16,8 +16,9 @@ target_link_libraries(unit_tests
     ftxui::dom
     ftxui::component
     ${SQLite3_LIBRARIES}
+    ${libsecret_LIBRARIES}
 )
-target_include_directories(unit_tests PRIVATE ${SQLite3_INCLUDE_DIRS})
+target_include_directories(unit_tests PRIVATE ${SQLite3_INCLUDE_DIRS} ${libsecret_INCLUDE_DIRS})
 
 include(GoogleTest)
 gtest_discover_tests(unit_tests)

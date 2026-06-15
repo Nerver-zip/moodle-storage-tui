@@ -43,7 +43,6 @@ private:
         // Login command
         auto* login = app_.add_subcommand("login", "Login to Moodle");
         login->add_option("-u,--url", login_url_, "Moodle URL")->required();
-        login->add_option("-c,--cookie", login_cookie_, "MoodleSession cookie")->required();
         
         // Upload command
         auto* upload = app_.add_subcommand("upload", "Upload file(s) or folder(s) to Moodle");
@@ -78,7 +77,7 @@ private:
 
     int execute() {
         if (app_.got_subcommand("login")) {
-            mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_, login_cookie_);
+            mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_);
             return handle_result(cmd.execute(), "Login");
         } 
         

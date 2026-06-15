@@ -29,9 +29,11 @@ CPMAddPackage("gh:ArthurSonzogni/FTXUI@5.0.0")
 CPMAddPackage("gh:google/googletest@1.14.0")
 
 find_package(SQLite3 REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libsecret libsecret-1 REQUIRED)
 
 # Includes
-include_directories(src)
+include_directories(src ${libsecret_INCLUDE_DIRS})
 
 # Common compile options
 add_compile_options(-Wall -Wextra -Wpedantic)
@@ -52,6 +54,7 @@ target_link_libraries(${PROJECT_NAME}
     ftxui::dom
     ftxui::component
     ${SQLite3_LIBRARIES}
+    ${libsecret_LIBRARIES}
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${SQLite3_INCLUDE_DIRS})
 
