@@ -21,7 +21,8 @@ protected:
         
         // Setup a dummy session
         SessionManager sm;
-        sm.save({"https://moodle.test", "key", "cookie"});
+        auto res = sm.save({"https://moodle.test", "key", "cookie"});
+        (void)res;
     }
 
     void TearDown() override {
@@ -36,7 +37,6 @@ TEST_F(TuiTest, InitialRenderShowsLoading) {
     SessionManager sm;
     TuiApplication app(sm, mock_http);
     
-    // We don't call trigger_refresh() yet, or we check the state before it finishes.
     auto component = app.get_root_component();
     
     auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(24));
@@ -44,9 +44,7 @@ TEST_F(TuiTest, InitialRenderShowsLoading) {
     
     std::string output = screen.ToString();
     
-    // Verify header title
     EXPECT_TRUE(output.find("Moodle Storage") != std::string::npos);
-    // Verify initial status
     EXPECT_TRUE(output.find("Loading data...") != std::string::npos);
 }
 
@@ -57,7 +55,6 @@ TEST_F(TuiTest, QuitEventHandling) {
     bool quit_called = false;
     auto component = app.get_root_component([&]() { quit_called = true; });
     
-    // Simulate 'q' key
     component->OnEvent(ftxui::Event::Character('q'));
     
     EXPECT_TRUE(quit_called);
@@ -67,8 +64,6 @@ TEST_F(TuiTest, RefreshEventHandling) {
     SessionManager sm;
     TuiApplication app(sm, mock_http);
     
-    // Expect list_files to be called during refresh
-    // Note: Since trigger_refresh is async, we just verify the event is handled.
     auto component = app.get_root_component();
     
     bool handled = component->OnEvent(ftxui::Event::Character('r'));

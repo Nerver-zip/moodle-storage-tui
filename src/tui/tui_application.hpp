@@ -9,8 +9,10 @@
 #include "tui/theme.hpp"
 #include <vector>
 #include <string>
+#include <future>
 #include <thread>
 #include <format>
+#include <mutex>
 
 namespace mstorage::tui {
 
@@ -18,7 +20,8 @@ class TuiApplication {
 public:
     TuiApplication(core::SessionManager& session_manager, network::HttpClient& http_client)
         : session_manager_(session_manager), http_client_(http_client) {
-        std::filesystem::path config_path = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.config/mstorage/themes/default.conf";
+        char* home = getenv("HOME");
+        std::filesystem::path config_path = std::string(home ? home : ".") + "/.config/mstorage/themes/default.conf";
         theme_ = ThemeManager::load_from_file(config_path);
     }
 
@@ -54,25 +57,74 @@ public:
         loading_ = true;
         refresh_thread_ = std::thread([this, session]() {
             moodle::MoodleClient client(http_client_, session->moodle_url);
-            auto flist = client.list_files(session->cookie);
+            
+            std::vector<models::MoodleFile> all_files;
+            std::vector<std::string> display_names;
+            
+            fetch_recursive(client, session->cookie, "/", 0, all_files, display_names);
             auto fuse = client.get_usage(session->cookie);
             
             {
                 std::lock_guard<std::mutex> lock(data_mutex_);
-                if (flist) files_ = *flist;
+                files_ = std::move(all_files);
+                file_names_ = std::move(display_names);
                 if (fuse) usage_ = *fuse;
                 
-                file_names_.clear();
-                if (files_.empty()) {
+                if (file_names_.empty()) {
                     file_names_.push_back("<No files found>");
-                } else {
-                    for (const auto& f : files_) file_names_.push_back(f.filename);
                 }
                 loading_ = false;
             }
         });
     }
 
+private:
+    void fetch_recursive(moodle::MoodleClient& client, const std::string& cookie, const std::string& path, int depth, std::vector<models::MoodleFile>& out_files, std::vector<std::string>& out_names) {
+        auto files = client.list_files(cookie, path);
+        if (!files) return;
+
+        for (auto& file : *files) {
+            std::string indent(depth * 2, ' ');
+            
+            if (file.filename == ".") {
+                if (file.filepath != "/") {
+                    std::string display = indent + "📁 " + get_folder_name(file.filepath);
+                    out_names.push_back(truncate(display, 40));
+                    
+                    models::MoodleFile folder_file = file;
+                    folder_file.filename = get_folder_name(file.filepath);
+                    folder_file.size_f = "DIR";
+                    out_files.push_back(folder_file);
+
+                    fetch_recursive(client, cookie, file.filepath, depth + 1, out_files, out_names);
+                }
+            } else {
+                std::string display = indent + "📄 " + file.filename;
+                out_names.push_back(truncate(display, 40));
+                out_files.push_back(file);
+            }
+        }
+    }
+
+    std::string get_folder_name(const std::string& filepath) {
+        if (filepath == "/") return "/";
+        std::string clean_path = filepath;
+        if (clean_path.back() == '/') clean_path.pop_back();
+        auto pos = clean_path.find_last_of('/');
+        if (pos != std::string::npos) {
+            return clean_path.substr(pos + 1);
+        }
+        return clean_path;
+    }
+
+    std::string truncate(std::string str, size_t width) {
+        if (str.length() > width) {
+            return str.substr(0, width - 3) + "...";
+        }
+        return str;
+    }
+
+public:
     ftxui::Component get_root_component(std::function<void()> exit_callback = [](){}) {
         auto session = session_manager_.load();
         std::string moodle_url = session ? session->moodle_url : "Unknown";
@@ -108,7 +160,7 @@ public:
             auto usage_color = usage_percent > 0.9 ? theme_.progress_high : (usage_percent > 0.7 ? theme_.progress_mid : theme_.progress_low);
 
             ftxui::Element details_content;
-            if (loading_ && !file_names_.empty() && file_names_[0] == "Loading...") {
+            if (loading_ && (file_names_.empty() || file_names_[0] == "Loading...")) {
                 details_content = ftxui::center(ftxui::text("Loading data...") | ftxui::color(theme_.hi_fg));
             } else if (files_.empty()) {
                 details_content = ftxui::center(ftxui::text("No file selected") | ftxui::dim);

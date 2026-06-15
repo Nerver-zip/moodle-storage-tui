@@ -59,9 +59,8 @@ TEST_F(CommandTest, UploadCommandOrchestration) {
     std::string test_file = (temp_dir / "test.txt").string();
     { std::ofstream f(test_file); f << "content"; }
 
-    UploadCommand cmd(client, sm, hm, test_file);
+    UploadCommand cmd(client, sm, hm, std::vector<std::string>{test_file}, "/");
     auto result = cmd.execute();
-    
     EXPECT_TRUE(result.has_value());
     
     // Check if history was recorded
@@ -100,21 +99,55 @@ TEST_F(CommandTest, LoginCommandOrchestration) {
 
 TEST_F(CommandTest, DownloadCommandOrchestration) {
     SessionManager sm;
-    MoodleClient client{mock_http, "https://moodle.test"};
+    ::testing::NiceMock<MockHttpClient> nice_mock_http;
+    MoodleClient client{nice_mock_http, "https://moodle.test"};
     
-    // Mock listing to find the file
-    EXPECT_CALL(mock_http, get(std::string("https://moodle.test/user/files.php"), _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
-    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=list"), _, _)).WillOnce(Return(std::string(R"({"list":[{"filename":"test.txt","url":"https://moodle.test/down","filepath":"/","size":10,"filesize":"10B","datemodified":1}]})")));
-    
-    // Mock actual download
-    EXPECT_CALL(mock_http, get(std::string("https://moodle.test/down"), _)).WillOnce(Return(std::string("file content")));
+    // Mandatory initialization mock - can be called multiple times
+    EXPECT_CALL(nice_mock_http, get(::testing::Eq("https://moodle.test/user/files.php"), _))
+        .Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
 
-    DownloadCommand cmd(client, sm, "test.txt");
+    EXPECT_CALL(nice_mock_http, post(::testing::StartsWith("https://moodle.test/repository/draftfiles_ajax.php?action=list"), _, _))
+        .WillOnce(Return(std::string(R"({"list":[{"filename":"test.txt","url":"https://moodle.test/down","filepath":"/","size":10,"filesize":"10B","datemodified":1}]})")));
+    
+    EXPECT_CALL(nice_mock_http, get(::testing::Eq("https://moodle.test/down"), _))
+        .WillOnce(Return(std::string("file content")));
+
+    DownloadCommand cmd(client, sm, std::vector<std::string>{"test.txt"}, false);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
-    
     EXPECT_TRUE(std::filesystem::exists("test.txt"));
     std::filesystem::remove("test.txt");
+}
+
+TEST_F(CommandTest, DownloadCommandRecursiveOrchestration) {
+    SessionManager sm;
+    ::testing::NiceMock<MockHttpClient> nice_mock_http;
+    MoodleClient client{nice_mock_http, "https://moodle.test"};
+
+    // Initialization mock
+    EXPECT_CALL(nice_mock_http, get(::testing::Eq("https://moodle.test/user/files.php"), _))
+        .Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+
+    // 1. Initial list_files (root) to find "folder1"
+    EXPECT_CALL(nice_mock_http, post(::testing::StartsWith("https://moodle.test/repository/draftfiles_ajax.php?action=list"), _, _))
+        .WillOnce(Return(std::string(R"({"list":[{"filename":".","filepath":"/folder1/","size":0,"filesize":"0B","datemodified":1}]})")));
+
+    // 2. Expect downloadselected (ZIP) call
+    EXPECT_CALL(nice_mock_http, post(::testing::StartsWith("https://moodle.test/repository/draftfiles_ajax.php?action=downloadselected"), _, _))
+        .WillOnce(Return(std::string(R"({"fileurl":"https://moodle.test/folder1.zip"})")));
+
+    // 3. Expect download of the ZIP file
+    EXPECT_CALL(nice_mock_http, get(std::string("https://moodle.test/folder1.zip"), _))
+        .WillOnce(Return(std::string("zip content")));
+
+    DownloadCommand cmd(client, sm, std::vector<std::string>{"folder1"}, true);
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+
+    EXPECT_TRUE(std::filesystem::exists("folder1.zip"));
+    std::filesystem::remove("folder1.zip");
 }
 
 TEST_F(CommandTest, HistoryCommandOrchestration) {
@@ -140,7 +173,7 @@ TEST_F(CommandTest, DeleteCommandOrchestration) {
     // 3. Expect commit_draft
     EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
 
-    mstorage::commands::DeleteCommand cmd(client, sm, "to_delete.txt", "/", false);
+    mstorage::commands::DeleteCommand cmd(client, sm, std::vector<std::string>{"to_delete.txt"}, "/", false);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }
@@ -159,7 +192,7 @@ TEST_F(CommandTest, DeleteCommandFolderOrchestration) {
     // 3. Expect commit_draft
     EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
 
-    mstorage::commands::DeleteCommand cmd(client, sm, "folder_to_delete", "/", true);
+    mstorage::commands::DeleteCommand cmd(client, sm, std::vector<std::string>{"folder_to_delete"}, "/", true);
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }
@@ -222,8 +255,91 @@ TEST_F(CommandTest, UsageCommandOrchestration) {
     // 4. Expect commit
     EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
 
-    UploadCommand cmd(client, sm, hm, test_file, "/a/b/");
+    UploadCommand cmd(client, sm, hm, std::vector<std::string>{test_file}, "/a/b/");
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
-    }
+}
+
+TEST_F(CommandTest, BatchDeleteMultipleItemsOrchestration) {
+    SessionManager sm;
+    MoodleClient client{mock_http, "https://moodle.test"};
+    
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+    
+    // 2. Expect delete_items (one call for multiple items)
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=deleteselected"), _, _))
+        .WillOnce(Return(std::string("{}")));
+        
+    // 3. Expect commit_draft
+    EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
+
+    std::vector<std::string> targets = {"file1.txt", "folder1", "file2.pdf"};
+    mstorage::commands::DeleteCommand cmd(client, sm, targets, "/", true);
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(CommandTest, RecursiveLocalUploadOrchestration) {
+    SessionManager sm;
+    mstorage::storage::HistoryManager hm(":memory:");
+    MoodleClient client{mock_http, "https://moodle.test"};
+
+    // Create a local nested structure
+    std::filesystem::path base = temp_dir / "recursive_upload";
+    std::filesystem::create_directories(base / "subdir");
+    std::ofstream(base / "file1.txt") << "content1";
+    std::ofstream(base / "subdir/file2.txt") << "content2";
+
+    // 1. Expect get_draft_info
+    EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+
+    // 2. Expect mkdir for "recursive_upload" and "subdir"
+    EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=mkdir"), _, _))
+        .Times(::testing::AtLeast(2))
+        .WillRepeatedly(Return(std::string("{}")));
+
+    // 3. Expect 2 uploads
+    EXPECT_CALL(mock_http, post_multipart(std::string("https://moodle.test/repository/repository_ajax.php?action=upload"), _, _))
+        .Times(2)
+        .WillRepeatedly(Return(std::string("{}")));
+
+    // 4. Expect commit
+    EXPECT_CALL(mock_http, post_raw(_, _, _, _)).WillOnce(Return(std::string("{}")));
+
+    std::vector<std::string> sources = {base.string()};
+    UploadCommand cmd(client, sm, hm, sources, "/", true);
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(CommandTest, BatchDownloadOrchestration) {
+    SessionManager sm;
+    ::testing::NiceMock<MockHttpClient> nice_mock_http;
+    MoodleClient client{nice_mock_http, "https://moodle.test"};
+
+    EXPECT_CALL(nice_mock_http, get(::testing::Eq("https://moodle.test/user/files.php"), _))
+        .Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
+
+    EXPECT_CALL(nice_mock_http, post(::testing::StartsWith("https://moodle.test/repository/draftfiles_ajax.php?action=list"), _, _))
+        .WillOnce(Return(std::string(R"({"list":[
+            {"filename":"a.txt","url":"https://moodle.test/a","filepath":"/","size":1,"filesize":"1B","datemodified":1},
+            {"filename":"b.txt","url":"https://moodle.test/b","filepath":"/","size":1,"filesize":"1B","datemodified":1}
+        ]})")));
+
+
+    EXPECT_CALL(nice_mock_http, get(std::string("https://moodle.test/a"), _)).WillOnce(Return(std::string("a")));
+    EXPECT_CALL(nice_mock_http, get(std::string("https://moodle.test/b"), _)).WillOnce(Return(std::string("b")));
+
+    std::vector<std::string> files = {"a.txt", "b.txt"};
+    DownloadCommand cmd(client, sm, files, false);
+    auto result = cmd.execute();
+    EXPECT_TRUE(result.has_value());
+
+    EXPECT_TRUE(std::filesystem::exists("a.txt"));
+    EXPECT_TRUE(std::filesystem::exists("b.txt"));
+    std::filesystem::remove("a.txt");
+    std::filesystem::remove("b.txt");
+}
 

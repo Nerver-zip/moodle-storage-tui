@@ -119,7 +119,7 @@ public:
         return {};
     }
 
-    std::expected<std::vector<models::MoodleFile>, std::error_code> list_files(const std::string& cookie) {
+    std::expected<std::vector<models::MoodleFile>, std::error_code> list_files(const std::string& cookie, const std::string& filepath = "/") {
         // First get draft info to ensure we have a sesskey and itemid
         auto info = get_draft_info(cookie);
         if (!info) return std::unexpected(info.error());
@@ -128,7 +128,7 @@ public:
         cpr::Payload payload{
             {"sesskey", info->sesskey},
             {"client_id", client_id},
-            {"filepath", "/"},
+            {"filepath", filepath},
             {"itemid", info->itemid}
         };
 
@@ -141,12 +141,42 @@ public:
             if (j.contains("list")) {
                 for (auto& item : j["list"]) {
                     models::MoodleFile f;
-                    f.filename = item["filename"];
-                    f.filepath = item["filepath"];
-                    f.url = item["url"];
-                    f.size = item["size"];
-                    f.size_f = item["filesize"];
-                    f.datemodified = item["datemodified"];
+                    f.filename = item.value("filename", "");
+                    f.filepath = item.value("filepath", "");
+                    f.url = item.value("url", "");
+                    
+                    if (item.contains("size") && item["size"].is_number()) {
+                        f.size = item["size"].get<uintmax_t>();
+                    } else {
+                        f.size = 0;
+                    }
+                    
+                    if (item.contains("filesize")) {
+                        std::string raw_size;
+                        if (item["filesize"].is_number()) {
+                            raw_size = std::to_string(item["filesize"].get<uintmax_t>());
+                        } else if (item["filesize"].is_string()) {
+                            raw_size = item["filesize"].get<std::string>();
+                        }
+                        
+                        std::string normalized;
+                        for (size_t i = 0; i < raw_size.length(); ++i) {
+                            if (static_cast<unsigned char>(raw_size[i]) == 0xc2 && i + 1 < raw_size.length() && static_cast<unsigned char>(raw_size[i+1]) == 0xa0) {
+                                normalized += ' ';
+                                i++; // Skip next byte
+                            } else {
+                                normalized += raw_size[i];
+                            }
+                        }
+                        f.size_f = normalized;
+                    }
+                    
+                    if (item.contains("datemodified") && item["datemodified"].is_number()) {
+                        f.datemodified = item["datemodified"].get<time_t>();
+                    } else {
+                        f.datemodified = 0;
+                    }
+                    
                     files.push_back(std::move(f));
                 }
             }
@@ -220,37 +250,73 @@ public:
         return {};
     }
 
-    std::expected<void, std::error_code> delete_item(const std::string& item_name, const std::string& parent_path, bool is_folder, const DraftInfo& info, const std::string& cookie) {
+    std::expected<std::string, std::error_code> zip_folder(const std::string& folder_path, const DraftInfo& info, const std::string& cookie) {
         std::string client_id = "mstorage_" + info.itemid;
-        
+        spdlog::debug("Requesting ZIP for folder: {} (draft area: {})", folder_path, info.itemid);
+
         nlohmann::json selected = nlohmann::json::array();
-        
-        std::string target_filename;
-        std::string target_filepath;
-
-        if (is_folder) {
-            target_filename = ".";
-            // Ensure folder path ends with /
-            target_filepath = parent_path + item_name;
-            if (target_filepath.back() != '/') {
-                target_filepath += "/";
-            }
-        } else {
-            target_filename = item_name;
-            target_filepath = parent_path;
-        }
-
-        spdlog::debug("Deleting item: filename={}, filepath={} from draft area: {}", target_filename, target_filepath, info.itemid);
-
         selected.push_back({
-            {"filepath", target_filepath},
-            {"filename", target_filename}
+            {"filepath", folder_path},
+            {"filename", "."}
         });
 
         cpr::Payload payload{
             {"sesskey", info.sesskey},
             {"client_id", client_id},
-            {"filepath", parent_path},
+            {"filepath", "/"},
+            {"itemid", info.itemid},
+            {"selected", selected.dump()}
+        };
+
+        auto response = client_.post(moodle_url_ + "/repository/draftfiles_ajax.php?action=downloadselected", payload, cpr::Cookies{{"MoodleSession", cookie}});
+        if (!response) return std::unexpected(response.error());
+
+        try {
+            auto j = nlohmann::json::parse(*response);
+            if (j.contains("fileurl") && j["fileurl"].is_string()) {
+                return j["fileurl"].get<std::string>();
+            }
+            spdlog::error("ZIP response missing fileurl: {}", *response);
+            return std::unexpected(std::make_error_code(std::errc::bad_message));
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to parse ZIP response: {}", e.what());
+            return std::unexpected(std::make_error_code(std::errc::bad_message));
+        }
+    }
+
+    std::expected<void, std::error_code> delete_items(const std::vector<models::DeleteItem>& items, const DraftInfo& info, const std::string& cookie) {
+        std::string client_id = "mstorage_" + info.itemid;
+        
+        nlohmann::json selected = nlohmann::json::array();
+        
+        for (const auto& item : items) {
+            std::string target_filename;
+            std::string target_filepath;
+
+            if (item.is_folder) {
+                target_filename = ".";
+                // Ensure folder path ends with /
+                target_filepath = item.parent_path + item.name;
+                if (target_filepath.back() != '/') {
+                    target_filepath += "/";
+                }
+            } else {
+                target_filename = item.name;
+                target_filepath = item.parent_path;
+            }
+
+            spdlog::debug("Queuing delete for item: filename={}, filepath={}", target_filename, target_filepath);
+
+            selected.push_back({
+                {"filepath", target_filepath},
+                {"filename", target_filename}
+            });
+        }
+
+        cpr::Payload payload{
+            {"sesskey", info.sesskey},
+            {"client_id", client_id},
+            {"filepath", "/"},
             {"itemid", info.itemid},
             {"selected", selected.dump()}
         };

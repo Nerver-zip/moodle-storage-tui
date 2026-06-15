@@ -8,8 +8,8 @@ namespace mstorage::commands {
 
 class DeleteCommand : public Command {
 public:
-    DeleteCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, std::string target_name, std::string remote_path = "/", bool recursive = false)
-        : moodle_client_(moodle_client), session_manager_(session_manager), target_name_(std::move(target_name)), remote_path_(std::move(remote_path)), recursive_(recursive) {
+    DeleteCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, std::vector<std::string> target_names, std::string remote_path = "/", bool recursive = false)
+        : moodle_client_(moodle_client), session_manager_(session_manager), target_names_(std::move(target_names)), remote_path_(std::move(remote_path)), recursive_(recursive) {
         
         // Normalize path
         if (remote_path_.empty() || remote_path_[0] != '/') remote_path_ = "/" + remote_path_;
@@ -20,8 +20,23 @@ public:
         auto session = session_manager_.load();
         if (!session) return std::unexpected(session.error());
 
-        if (recursive_ && target_name_.empty()) {
-            std::cerr << "Error: Cannot delete the root directory.\n";
+        std::vector<models::DeleteItem> items_to_delete;
+
+        for (auto name : target_names_) {
+            // Normalize name: remove trailing slash if any
+            if (name.length() > 1 && name.back() == '/') {
+                name.pop_back();
+            }
+
+            if (recursive_ && name.empty()) {
+                std::cerr << "Error: Cannot delete the root directory.\n";
+                return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+            }
+            items_to_delete.push_back({name, remote_path_, recursive_});
+        }
+
+        if (items_to_delete.empty()) {
+            std::cerr << "No items specified for deletion.\n";
             return std::unexpected(std::make_error_code(std::errc::invalid_argument));
         }
 
@@ -29,23 +44,23 @@ public:
         auto draft_info = moodle_client_.get_draft_info(session->cookie);
         if (!draft_info) return std::unexpected(draft_info.error());
 
-        std::cout << "Deleting " << (recursive_ ? "folder" : "file") << ": " << target_name_ << " from " << remote_path_ << "\n";
+        std::cout << "Deleting " << items_to_delete.size() << " item(s) from " << remote_path_ << "\n";
         
-        auto delete_result = moodle_client_.delete_item(target_name_, remote_path_, recursive_, *draft_info, session->cookie);
+        auto delete_result = moodle_client_.delete_items(items_to_delete, *draft_info, session->cookie);
         if (!delete_result) return std::unexpected(delete_result.error());
 
         std::cout << "Committing changes...\n";
         auto commit_result = moodle_client_.commit_draft(*draft_info, session->cookie);
         if (!commit_result) return std::unexpected(commit_result.error());
 
-        std::cout << "Item deleted successfully!\n";
+        std::cout << "Items deleted successfully!\n";
         return {};
     }
 
 private:
     moodle::MoodleClient& moodle_client_;
     core::SessionManager& session_manager_;
-    std::string target_name_;
+    std::vector<std::string> target_names_;
     std::string remote_path_;
     bool recursive_;
 };

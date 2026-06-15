@@ -35,4 +35,10 @@ struct StorageUsage {
     uintmax_t total_bytes;
 };
 
+struct DeleteItem {
+    std::string name;
+    std::string parent_path;
+    bool is_folder;
+};
+
 } // namespace mstorage::models
