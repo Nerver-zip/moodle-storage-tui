@@ -43,16 +43,16 @@ sudo mv mstorage /usr/local/bin/
 ```
 
 ### 3. Dependências de Execução (Runtime)
-Certifique-se de que as bibliotecas base estão instaladas:
+O binário é quase totalmente estático. A única dependência obrigatória do sistema é a `libsecret` (para o Keyring).
 
 **Ubuntu / Debian:**
 ```bash
-sudo apt update && sudo apt install libsecret-1-0 libcurl4 libsqlite3-0 libssl3
+sudo apt update && sudo apt install libsecret-1-0
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S libsecret curl sqlite openssl
+sudo pacman -S libsecret
 ```
 
 ---

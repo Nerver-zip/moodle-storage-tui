@@ -15,6 +15,17 @@ else()
     message(STATUS "ccache not found, proceeding without it.")
 endif()
 
+# Dependencies options for static linking
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(SELECT_CURL_PUBLIC_KEY_PINNING OFF CACHE BOOL "" FORCE)
+set(CURL_CA_BUNDLE "none" CACHE STRING "" FORCE)
+set(CURL_CA_PATH "none" CACHE STRING "" FORCE)
+
+# CPR Options
+set(CPR_FORCE_USE_SYSTEM_CURL OFF CACHE BOOL "" FORCE)
+set(CPR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CPR_GENERATE_PKGCONFIG OFF CACHE BOOL "" FORCE)
+
 # CPM.cmake - Dependency Manager
 set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM_0.38.2.cmake")
 if(NOT EXISTS "${CPM_DOWNLOAD_LOCATION}")
@@ -26,15 +37,22 @@ if(NOT EXISTS "${CPM_DOWNLOAD_LOCATION}")
 endif()
 include("${CPM_DOWNLOAD_LOCATION}")
 
-# Prefer local system packages instead of building from source if available
-set(CPM_USE_LOCAL_PACKAGES ON)
+# We want to build most things from source to ensure static linkage
+set(CPM_USE_LOCAL_PACKAGES OFF)
 
 # Dependencies
 CPMAddPackage(
     NAME cpr
     GITHUB_REPOSITORY libcpr/cpr
     GIT_TAG 1.10.5
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CPR_BUILD_TESTS OFF"
 )
+# Ensure we find the static targets
+if(TARGET cpr::cpr)
+    message(STATUS "CPR target found")
+endif()
 CPMAddPackage("gh:nlohmann/json@3.11.3")
 CPMAddPackage("gh:gabime/spdlog@1.12.0")
 CPMAddPackage("gh:CLIUtils/CLI11@2.4.2")
