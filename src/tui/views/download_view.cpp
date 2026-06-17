@@ -41,7 +41,7 @@ ftxui::Component CreateDownloadView(TuiContext& ctx) {
                 }) | ftxui::center,
                 ftxui::text(ctx.download_status) | ftxui::color(ctx.theme.hi_fg) | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::clear_under | ftxui::center;
     });
 }
 

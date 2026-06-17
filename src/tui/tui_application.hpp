@@ -25,6 +25,7 @@ private:
     TuiContext context_;
     std::thread refresh_thread_;
     std::thread action_thread_;
+    std::thread spinner_thread_;
     
     // Components
     ftxui::Component tab_container_;

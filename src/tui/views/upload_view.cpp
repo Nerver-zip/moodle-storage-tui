@@ -41,7 +41,7 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 ftxui::text(" [Tab] Navigate  •  [Space] Select  •  [Enter] Confirm  •  [Esc] Close ") | ftxui::dim | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 75) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 75) | ftxui::clear_under | ftxui::center;
         return dialog;
     });
 }

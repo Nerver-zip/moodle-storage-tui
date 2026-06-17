@@ -18,8 +18,21 @@ ftxui::Component CreateBrowserView(TuiContext& ctx, ftxui::Component file_menu) 
             status_text += std::format(" | Selected: {}", ctx.selected_paths.size());
         }
         
+        auto title_element = ftxui::hbox({
+            ftxui::text(" 󰊄 Moodle Storage ") | ftxui::bold | ftxui::color(ctx.theme.title)
+        });
+
+        if (ctx.loading) {
+            const std::vector<std::string> spinner_frames = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+            std::string spinner_char = spinner_frames[ctx.spinner_frame % spinner_frames.size()];
+            title_element = ftxui::hbox({
+                ftxui::text(" 󰊄 Moodle Storage ") | ftxui::bold | ftxui::color(ctx.theme.title),
+                ftxui::text("  " + spinner_char + " Refreshing") | ftxui::bold | ftxui::color(ctx.theme.title)
+            });
+        }
+
         auto header = ftxui::hbox({
-            ftxui::text(" 󰊄 Moodle Storage ") | ftxui::bold | ftxui::color(ctx.theme.title),
+            title_element,
             ftxui::filler(),
             ftxui::text(" " + status_text + " ") | ftxui::color(ctx.theme.hi_fg),
         }) | ftxui::bgcolor(ctx.theme.selected_bg);

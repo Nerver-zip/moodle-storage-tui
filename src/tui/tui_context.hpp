@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <atomic>
 
 namespace mstorage::tui {
 
@@ -37,6 +38,7 @@ public:
     models::StorageUsage usage = {0, 100 * 1024 * 1024};
     int selected = 0;
     bool loading = true;
+    std::atomic<int> spinner_frame = 0;
     bool first_load = true;
     std::mutex data_mutex;
     ftxui::ScreenInteractive* screen = nullptr;

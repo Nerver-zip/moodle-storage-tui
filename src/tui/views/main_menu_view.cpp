@@ -19,7 +19,7 @@ ftxui::Component CreateMainMenuView(TuiContext& ctx, std::function<void()> open_
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 ftxui::text(" [Enter] Select  •  [Esc] Back ") | ftxui::dim | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 32) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 32) | ftxui::clear_under | ftxui::center;
     });
 }
 

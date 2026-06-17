@@ -40,7 +40,7 @@ ftxui::Component CreateDeleteView(TuiContext& ctx) {
                 }) | ftxui::center,
                 ftxui::text(ctx.delete_status) | ftxui::color(ctx.theme.progress_high) | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::clear_under | ftxui::center;
     });
 }
 

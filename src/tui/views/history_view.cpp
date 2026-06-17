@@ -21,7 +21,7 @@ ftxui::Component CreateHistoryView(TuiContext& ctx) {
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 btn_history_close->Render() | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 70) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 70) | ftxui::clear_under | ftxui::center;
     });
 }
 

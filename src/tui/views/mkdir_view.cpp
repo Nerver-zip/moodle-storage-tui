@@ -31,7 +31,7 @@ ftxui::Component CreateMkdirView(TuiContext& ctx) {
                 }) | ftxui::center,
                 ftxui::text(ctx.mkdir_status) | ftxui::color(ctx.theme.progress_high) | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::clear_under | ftxui::center;
     });
 }
 

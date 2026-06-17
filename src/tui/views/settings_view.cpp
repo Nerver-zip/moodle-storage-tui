@@ -41,7 +41,7 @@ ftxui::Component CreateSettingsView(TuiContext& ctx, std::function<void()> open_
                 ftxui::text(" [Enter] Select  •  [Esc] Back ") | ftxui::dim | ftxui::center,
                 ftxui::text(ctx.settings_status) | ftxui::color(ctx.theme.hi_fg) | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::clear_under | ftxui::center;
     });
 }
 

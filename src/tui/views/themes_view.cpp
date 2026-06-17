@@ -15,7 +15,7 @@ ftxui::Component CreateThemesView(TuiContext& ctx) {
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 ftxui::text(" [Enter] Apply  •  [Esc] Back ") | ftxui::dim | ftxui::center
             })
-        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::center;
+        ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::clear_under | ftxui::center;
     });
 }
 

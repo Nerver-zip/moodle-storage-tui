@@ -32,6 +32,9 @@ TuiApplication::~TuiApplication() {
     if (action_thread_.joinable()) {
         action_thread_.join();
     }
+    if (spinner_thread_.joinable()) {
+        spinner_thread_.join();
+    }
 }
 
 void TuiApplication::run() {
@@ -57,8 +60,23 @@ void TuiApplication::trigger_refresh() {
     if (refresh_thread_.joinable()) {
         refresh_thread_.join();
     }
+    if (spinner_thread_.joinable()) {
+        spinner_thread_.join();
+    }
 
     context_.loading = true;
+    context_.spinner_frame = 0;
+
+    spinner_thread_ = std::thread([this]() {
+        while (context_.loading) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(80));
+            context_.spinner_frame = (context_.spinner_frame + 1) % 10;
+            if (context_.screen) {
+                context_.screen->PostEvent(ftxui::Event::Custom);
+            }
+        }
+    });
+
     refresh_thread_ = std::thread([this, session]() {
         moodle::MoodleClient client(context_.http_client, session->moodle_url);
         client.set_wstoken(session->wstoken);
@@ -595,8 +613,14 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
         themes_view         // 9: Themes
     }, &context_.active_tab);
 
-    auto renderer = ftxui::Renderer(tab_container_, [this]() {
-        return tab_container_->Render();
+    auto renderer = ftxui::Renderer(tab_container_, [this, browser_view]() {
+        if (context_.active_tab == 0 || context_.active_tab == 1) {
+            return tab_container_->Render();
+        } else {
+            auto background = browser_view->Render() | ftxui::dim;
+            auto overlay = tab_container_->Render();
+            return ftxui::dbox({ background, overlay });
+        }
     });
 
     return ftxui::CatchEvent(renderer, [this, exit_callback](ftxui::Event event) {
