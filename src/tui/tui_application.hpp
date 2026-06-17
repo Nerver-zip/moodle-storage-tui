@@ -320,11 +320,16 @@ private:
 
             files_.push_back(file);
 
-            int depth = std::count(file.filepath.begin(), file.filepath.end(), '/') - 1;
-            if (file.filepath != "/" && file.filepath.back() == '/') depth--;
+            int depth = std::count(file.filepath.begin(), file.filepath.end(), '/');
+            if (file.filepath.back() == '/') {
+                depth--;
+            }
+            if (file.size_f == "DIR") {
+                depth--;
+            }
             if (depth < 0) depth = 0;
 
-            std::string indent(depth * 2, ' ');
+            std::string indent(depth * 4, ' ');
             
             std::string select_indicator = "☐ ";
             std::string item_key = file.filepath + "/" + file.filename;
