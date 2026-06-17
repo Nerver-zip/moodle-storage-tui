@@ -13,24 +13,18 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
         if (ctx.perform_upload_cb) ctx.perform_upload_cb();
     }, ctx.make_button_option(true));
     
-    auto btn_upload_cancel = ftxui::Button("Cancel", [&ctx]() {
-        ctx.selected_local_paths.clear();
-        ctx.close_dialog();
-    }, ctx.make_button_option(false));
-
     auto upload_container = ftxui::Container::Vertical({
         input_moodle_path,
         local_files_menu,
         chk_upload_recursive,
-        btn_upload_ok,
-        btn_upload_cancel
+        btn_upload_ok
     });
 
     // Share references to components in ctx for unit testing
     ctx.upload_container = upload_container;
     ctx.local_files_menu = local_files_menu;
 
-    return ftxui::Renderer(upload_container, [input_moodle_path, local_files_menu, chk_upload_recursive, btn_upload_ok, btn_upload_cancel, &ctx]() {
+    return ftxui::Renderer(upload_container, [input_moodle_path, local_files_menu, chk_upload_recursive, btn_upload_ok, &ctx]() {
         auto dialog = ftxui::window(ftxui::text(" Upload File/Folder ") | ftxui::bold | ftxui::color(ctx.theme.title),
             ftxui::vbox({
                 ftxui::hbox({
@@ -42,12 +36,10 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
                 local_files_menu->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 12) | ftxui::border,
                 chk_upload_recursive->Render(),
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
-                ftxui::hbox({
-                    btn_upload_ok->Render(),
-                    ftxui::text("   "),
-                    btn_upload_cancel->Render()
-                }) | ftxui::center,
-                ftxui::text(ctx.upload_status) | ftxui::color(ctx.theme.hi_fg) | ftxui::center
+                btn_upload_ok->Render() | ftxui::center,
+                ftxui::text(ctx.upload_status) | ftxui::color(ctx.theme.hi_fg) | ftxui::center,
+                ftxui::separator() | ftxui::color(ctx.theme.div_line),
+                ftxui::text(" [Tab] Navigate  •  [Space] Select  •  [Enter] Confirm  •  [Esc] Close ") | ftxui::dim | ftxui::center
             })
         ) | ftxui::color(ctx.theme.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 75) | ftxui::center;
         return dialog;

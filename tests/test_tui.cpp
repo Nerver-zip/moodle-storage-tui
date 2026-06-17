@@ -70,6 +70,9 @@ protected:
     auto& get_loading(TuiApplication& app) {
         return app.context_.loading;
     }
+    auto& get_context(TuiApplication& app) {
+        return app.context_;
+    }
     void update_visible_files(TuiApplication& app) {
         app.context_.update_visible_files();
     }
@@ -347,6 +350,54 @@ TEST_F(TuiTest, UploadLocalFilesBrowserNavigation) {
     EXPECT_TRUE(output.find("local_browser_test") != std::string::npos);
 
     std::filesystem::current_path(old_path);
+}
+
+TEST_F(TuiTest, UploadDialogTabNavigation) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    auto component = app.get_root_component();
+
+    // Open upload dialog
+    bool u_pressed = component->OnEvent(ftxui::Event::Character('u'));
+    EXPECT_TRUE(u_pressed);
+
+    auto& ctx = get_context(app);
+    auto active = ctx.upload_container->ActiveChild();
+    // Index 0 should be input_moodle_path
+    EXPECT_EQ(ctx.upload_container->ChildAt(0), active);
+
+    // Press Tab
+    bool tab_pressed = component->OnEvent(ftxui::Event::Tab);
+    EXPECT_TRUE(tab_pressed);
+    active = ctx.upload_container->ActiveChild();
+    // Index 1 should be local_files_menu
+    EXPECT_EQ(ctx.upload_container->ChildAt(1), active);
+
+    // Press Tab again
+    tab_pressed = component->OnEvent(ftxui::Event::Tab);
+    EXPECT_TRUE(tab_pressed);
+    active = ctx.upload_container->ActiveChild();
+    // Index 2 should be chk_upload_recursive
+    EXPECT_EQ(ctx.upload_container->ChildAt(2), active);
+
+    // Press Tab again
+    tab_pressed = component->OnEvent(ftxui::Event::Tab);
+    EXPECT_TRUE(tab_pressed);
+    active = ctx.upload_container->ActiveChild();
+    // Index 3 should be btn_upload_ok
+    EXPECT_EQ(ctx.upload_container->ChildAt(3), active);
+
+    // Press Tab again (loops back to index 0)
+    tab_pressed = component->OnEvent(ftxui::Event::Tab);
+    EXPECT_TRUE(tab_pressed);
+    active = ctx.upload_container->ActiveChild();
+    EXPECT_EQ(ctx.upload_container->ChildAt(0), active);
+
+    // Press Shift-Tab (TabReverse) (goes back to index 3)
+    bool shift_tab_pressed = component->OnEvent(ftxui::Event::TabReverse);
+    EXPECT_TRUE(shift_tab_pressed);
+    active = ctx.upload_container->ActiveChild();
+    EXPECT_EQ(ctx.upload_container->ChildAt(3), active);
 }
 
 TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {

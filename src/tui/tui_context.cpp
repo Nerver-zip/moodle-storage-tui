@@ -359,12 +359,18 @@ void TuiContext::apply_selected_theme() {
 ftxui::ButtonOption TuiContext::make_button_option(bool primary) {
     ftxui::ButtonOption opt;
     opt.transform = [this, primary](const ftxui::EntryState& s) {
-        auto element = ftxui::text(s.label) | ftxui::center;
+        std::string label = s.label;
+        if (s.focused) {
+            label = "   ➤  " + label + "  ◄   ";
+        } else {
+            label = "      " + label + "      ";
+        }
+        auto element = ftxui::text(label) | ftxui::center;
         if (s.focused) {
             return element | ftxui::bold | ftxui::color(theme.selected_fg) | ftxui::bgcolor(theme.selected_bg) | ftxui::border;
         } else {
             if (primary) {
-                return element | ftxui::color(theme.main_bg) | ftxui::bgcolor(theme.box_border) | ftxui::border;
+                return element | ftxui::color(theme.main_fg) | ftxui::border;
             } else {
                 return element | ftxui::color(theme.inactive_fg) | ftxui::border;
             }

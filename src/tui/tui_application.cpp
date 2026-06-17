@@ -606,6 +606,29 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
                 context_.close_dialog();
                 return true;
             }
+            if (event == ftxui::Event::Tab || event == ftxui::Event::TabReverse) {
+                if (context_.upload_container) {
+                    auto active = context_.upload_container->ActiveChild();
+                    size_t count = context_.upload_container->ChildCount();
+                    if (count > 0) {
+                        size_t current_idx = 0;
+                        for (size_t i = 0; i < count; ++i) {
+                            if (context_.upload_container->ChildAt(i) == active) {
+                                current_idx = i;
+                                break;
+                            }
+                        }
+                        size_t next_idx;
+                        if (event == ftxui::Event::Tab) {
+                            next_idx = (current_idx + 1) % count;
+                        } else {
+                            next_idx = (current_idx + count - 1) % count;
+                        }
+                        context_.upload_container->SetActiveChild(context_.upload_container->ChildAt(next_idx));
+                        return true;
+                    }
+                }
+            }
             
             if (context_.upload_container && context_.local_files_menu && context_.upload_container->ActiveChild() == context_.local_files_menu) {
                 if (event == ftxui::Event::Character(' ')) {
@@ -665,7 +688,13 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
 
         if (context_.active_tab != 0) {
             if (event == ftxui::Event::Escape) {
-                context_.close_dialog();
+                if (context_.active_tab == 8) {
+                    context_.active_tab = 7;
+                } else if (context_.active_tab == 9) {
+                    context_.active_tab = 8;
+                } else {
+                    context_.close_dialog();
+                }
                 return true;
             }
             return false;
