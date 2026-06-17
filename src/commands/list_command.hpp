@@ -44,7 +44,7 @@ private:
 
         for (const auto& d : dirs) {
             std::string folder_name = get_folder_name(d.filepath);
-            std::string prefix(indent * 2, ' ');
+            std::string prefix(indent * 4, ' ');
             std::string display_name = truncate(prefix + "📁 " + folder_name, 60);
             print_cell(display_name, 62);
             print_cell("-", 15);
@@ -55,7 +55,7 @@ private:
         }
 
         for (const auto& f : regular_files) {
-            std::string prefix(indent * 2, ' ');
+            std::string prefix(indent * 4, ' ');
             std::string display_name = truncate(prefix + "📄 " + f.filename, 60);
             print_cell(display_name, 62);
             print_cell(f.size_f, 15);
