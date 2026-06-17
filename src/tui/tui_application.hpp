@@ -81,6 +81,17 @@ public:
                 std::lock_guard<std::mutex> lock(data_mutex_);
                 all_files_ = std::move(all_files);
                 if (fuse) usage_ = *fuse;
+
+                // On first load, collapse all folders by default
+                if (first_load_) {
+                    for (const auto& file : all_files_) {
+                        if (file.size_f == "DIR") {
+                            collapsed_folders_.insert(file.filepath);
+                        }
+                    }
+                    first_load_ = false;
+                }
+
                 loading_ = false;
             }
             if (screen_) {
@@ -1132,22 +1143,19 @@ public:
                         ftxui::text("Size: " + f.size_f) | ftxui::color(theme_.main_fg),
                         ftxui::text("Modified: " + std::string(ctime(&f.datemodified))) | ftxui::color(theme_.inactive_fg),
                         ftxui::filler(),
+                        ftxui::text(""),
                         ftxui::vbox({
-                            ftxui::text("                  ππ√∞≠=÷×÷∞π                     ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("          ππ√∞≠÷×-××××-×=√π                       ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("       π∞≠÷×××××××××××≈ππ                         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("    π≈×××××××××××××××××=πππ∞≠≠≠≠≠≠≈∞ππ            ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("  π∞≠∞∞≈≈≈÷××××××××××××=≠≈≠≠≠≠≠≠≠≠≠≠≠≈√π          ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   π∞    π=××××××××××=≠≠≠≠≠≠≠≈∞∞≈≠≠≠≠≠≠≈π         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   π∞     ∞÷×××××=∞πππ≈≠≠≠≠≠∞π  ππ≈≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   √≈π    ∞≠≠≠≠≈√π    ∞≠≠≠≠≠√    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   ≈÷π    ∞≠≠≠≠≈√π    ∞≠≠≠≠≠π    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   √÷π    ∞≠≠≠≠≈√π    ∞≠≠≠≠≠π    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("   π≈π    ∞≠≠≠≠≈√π    ∞≠≠≠≠≠π    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("    ππ    ∞≠≠≠≠≈√π    ∞≠≠≠≠≠π    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("          ∞≠≠≠≠≈√π    ∞≠≠≠≠≠π    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
-                            ftxui::text("          ∞≠≠≠≠≈√π    ∞≠≠≠≠≠√    π∞≠≠≠≠≠√         ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("           √≈≠=××≠               ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("      √××××××××√                 ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("  √=×××××××××××÷π∞≈≠≠≠≠∞√        ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("  π   π×××××××÷≠≠≠≠≈≈≈≠≠≠≠       ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("  π    ≠≠==∞π √≠≠≠∞   √≠≠≠∞      ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("  ≠    ≠≠≠≈   π≠≠≠∞   π≠≠≠∞      ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("  ∞√   ≠≠≠≈   π≠≠≠∞   π≠≠≠∞      ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("   π   ≠≠≠≈   π≠≠≈∞   π≠≠≠∞      ") | ftxui::color(theme_.hi_fg) | ftxui::center,
+                            ftxui::text("       ≠≠≠≈   π≠≠≠∞   π≠≠≠∞      ") | ftxui::color(theme_.hi_fg) | ftxui::center,
                         }) | ftxui::center,
+                        ftxui::text(""),
                         ftxui::filler(),
                         ftxui::text("Storage Usage") | ftxui::color(theme_.title),
                         ftxui::gauge(usage_percent) | ftxui::color(usage_color) | ftxui::borderEmpty,
@@ -1437,6 +1445,7 @@ private:
     models::StorageUsage usage_ = {0, 100 * 1024 * 1024};
     int selected_ = 0;
     bool loading_ = true;
+    bool first_load_ = true;
     std::mutex data_mutex_;
     std::thread refresh_thread_;
     std::thread action_thread_;
