@@ -79,7 +79,35 @@ TEST_F(TuiTest, RefreshEventHandling) {
     EXPECT_TRUE(handled);
 }
 
-TEST_F(TuiTest, OpenMkdirDialogOnMKeyPressed) {
+TEST_F(TuiTest, OpenMkdirDialogOnNKeyPressed) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    auto component = app.get_root_component();
+    bool handled = component->OnEvent(ftxui::Event::Character('n'));
+    EXPECT_TRUE(handled);
+    
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(24));
+    ftxui::Render(screen, component->Render());
+    std::string output = screen.ToString();
+    EXPECT_TRUE(output.find("Create Directory") != std::string::npos);
+}
+
+TEST_F(TuiTest, OpenSettingsDialogOnSKeyPressed) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    auto component = app.get_root_component();
+    bool handled = component->OnEvent(ftxui::Event::Character('s'));
+    EXPECT_TRUE(handled);
+    
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(24));
+    ftxui::Render(screen, component->Render());
+    std::string output = screen.ToString();
+    EXPECT_TRUE(output.find("Settings") != std::string::npos);
+}
+
+TEST_F(TuiTest, OpenMainMenuOnMKeyPressed) {
     SessionManager sm;
     TuiApplication app(sm, mock_http, *hm);
     
@@ -90,7 +118,7 @@ TEST_F(TuiTest, OpenMkdirDialogOnMKeyPressed) {
     auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(24));
     ftxui::Render(screen, component->Render());
     std::string output = screen.ToString();
-    EXPECT_TRUE(output.find("Create Directory") != std::string::npos);
+    EXPECT_TRUE(output.find("Main Menu") != std::string::npos);
 }
 
 TEST_F(TuiTest, OpenUploadDialogOnUKeyPressed) {
@@ -127,8 +155,8 @@ TEST_F(TuiTest, ArrowKeysAndSelectionEventHandling) {
     
     auto component = app.get_root_component();
     
-    bool s_handled = component->OnEvent(ftxui::Event::Character('s'));
-    EXPECT_FALSE(s_handled);
+    bool space_handled = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_FALSE(space_handled);
 
     bool left_handled = component->OnEvent(ftxui::Event::ArrowLeft);
     EXPECT_FALSE(left_handled);

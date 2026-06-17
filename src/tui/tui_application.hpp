@@ -26,7 +26,10 @@ public:
     TuiApplication(core::SessionManager& session_manager, network::HttpClient& http_client, storage::HistoryManager& history_manager)
         : session_manager_(session_manager), http_client_(http_client), history_manager_(history_manager) {
         char* home = getenv("HOME");
-        std::filesystem::path config_path = std::string(home ? home : ".") + "/.config/mstorage/themes/default.conf";
+        std::filesystem::path config_dir = std::string(home ? home : ".") + "/.config/mstorage/themes";
+        ensure_default_themes(config_dir);
+        
+        std::filesystem::path config_path = config_dir / "default.conf";
         theme_ = ThemeManager::load_from_file(config_path);
     }
 
@@ -87,6 +90,153 @@ public:
     }
 
 private:
+    void ensure_default_themes(const std::filesystem::path& theme_dir) {
+        std::filesystem::create_directories(theme_dir);
+        
+        struct DefaultTheme {
+            std::string name;
+            std::string content;
+        };
+        
+        std::vector<DefaultTheme> defaults = {
+            {"catppuccin_mocha.conf", 
+             "# Catppuccin Mocha\n"
+             "theme[main_bg]=\"#1e1e2e\"\ntheme[main_fg]=\"#cdd6f4\"\ntheme[title]=\"#cdd6f4\"\ntheme[hi_fg]=\"#89b4fa\"\n"
+             "theme[selected_bg]=\"#45475a\"\ntheme[selected_fg]=\"#89b4fa\"\ntheme[inactive_fg]=\"#7f849c\"\n"
+             "theme[cpu_box]=\"#cba6f7\"\ntheme[mem_box]=\"#a6e3a1\"\ntheme[div_line]=\"#6c7086\"\n"
+             "theme[used_start]=\"#a6e3a1\"\ntheme[available_mid]=\"#f9e2af\"\ntheme[available_end]=\"#f38ba8\"\n"},
+             
+            {"catppuccin_macchiato.conf",
+             "# Catppuccin Macchiato\n"
+             "theme[main_bg]=\"#24273a\"\ntheme[main_fg]=\"#cad3f5\"\ntheme[title]=\"#cad3f5\"\ntheme[hi_fg]=\"#8aadf4\"\n"
+             "theme[selected_bg]=\"#363a4f\"\ntheme[selected_fg]=\"#8aadf4\"\ntheme[inactive_fg]=\"#8087a2\"\n"
+             "theme[cpu_box]=\"#c6a0f6\"\ntheme[mem_box]=\"#a6da95\"\ntheme[div_line]=\"#6e738d\"\n"
+             "theme[used_start]=\"#a6da95\"\ntheme[available_mid]=\"#eed49f\"\ntheme[available_end]=\"#ed8796\"\n"},
+             
+            {"catppuccin_frappe.conf",
+             "# Catppuccin Frappe\n"
+             "theme[main_bg]=\"#303446\"\ntheme[main_fg]=\"#c6d0f5\"\ntheme[title]=\"#c6d0f5\"\ntheme[hi_fg]=\"#8caaee\"\n"
+             "theme[selected_bg]=\"#414559\"\ntheme[selected_fg]=\"#8caaee\"\ntheme[inactive_fg]=\"#838ba7\"\n"
+             "theme[cpu_box]=\"#ca9ee6\"\ntheme[mem_box]=\"#a6d189\"\ntheme[div_line]=\"#737994\"\n"
+             "theme[used_start]=\"#a6d189\"\ntheme[available_mid]=\"#e5c890\"\ntheme[available_end]=\"#e78284\"\n"},
+             
+            {"catppuccin_latte.conf",
+             "# Catppuccin Latte\n"
+             "theme[main_bg]=\"#eff1f5\"\ntheme[main_fg]=\"#4c4f69\"\ntheme[title]=\"#4c4f69\"\ntheme[hi_fg]=\"#1e66f5\"\n"
+             "theme[selected_bg]=\"#ccd0da\"\ntheme[selected_fg]=\"#1e66f5\"\ntheme[inactive_fg]=\"#7c7f93\"\n"
+             "theme[cpu_box]=\"#8839ef\"\ntheme[mem_box]=\"#40a02b\"\ntheme[div_line]=\"#9ca0b0\"\n"
+             "theme[used_start]=\"#40a02b\"\ntheme[available_mid]=\"#df8e1d\"\ntheme[available_end]=\"#d20f39\"\n"},
+             
+            {"dracula.conf",
+             "# Dracula Theme\n"
+             "theme[main_bg]=\"#282a36\"\ntheme[main_fg]=\"#f8f8f2\"\ntheme[title]=\"#f8f8f2\"\ntheme[hi_fg]=\"#8be9fd\"\n"
+             "theme[selected_bg]=\"#44475a\"\ntheme[selected_fg]=\"#50fa7b\"\ntheme[inactive_fg]=\"#6272a4\"\n"
+             "theme[cpu_box]=\"#bd93f9\"\ntheme[mem_box]=\"#50fa7b\"\ntheme[div_line]=\"#44475a\"\n"
+             "theme[used_start]=\"#50fa7b\"\ntheme[available_mid]=\"#ffb86c\"\ntheme[available_end]=\"#ff5555\"\n"},
+             
+            {"tokyo_night.conf",
+             "# Tokyo Night (Storm)\n"
+             "theme[main_bg]=\"#24283b\"\ntheme[main_fg]=\"#a9b1d6\"\ntheme[title]=\"#a9b1d6\"\ntheme[hi_fg]=\"#7aa2f7\"\n"
+             "theme[selected_bg]=\"#2f3549\"\ntheme[selected_fg]=\"#7aa2f7\"\ntheme[inactive_fg]=\"#565f89\"\n"
+             "theme[cpu_box]=\"#bb9af7\"\ntheme[mem_box]=\"#9ece6a\"\ntheme[div_line]=\"#3b4261\"\n"
+             "theme[used_start]=\"#9ece6a\"\ntheme[available_mid]=\"#e0af68\"\ntheme[available_end]=\"#f7768e\"\n"},
+             
+            {"gruvbox_dark.conf",
+             "# Gruvbox Dark\n"
+             "theme[main_bg]=\"#282828\"\ntheme[main_fg]=\"#ebdbb2\"\ntheme[title]=\"#ebdbb2\"\ntheme[hi_fg]=\"#458588\"\n"
+             "theme[selected_bg]=\"#3c3836\"\ntheme[selected_fg]=\"#fabd2f\"\ntheme[inactive_fg]=\"#928374\"\n"
+             "theme[cpu_box]=\"#b16286\"\ntheme[mem_box]=\"#b8bb26\"\ntheme[div_line]=\"#504945\"\n"
+             "theme[used_start]=\"#b8bb26\"\ntheme[available_mid]=\"#fabd2f\"\ntheme[available_end]=\"#fb4934\"\n"},
+             
+            {"gruvbox_light.conf",
+             "# Gruvbox Light\n"
+             "theme[main_bg]=\"#fbf1c7\"\ntheme[main_fg]=\"#3c3836\"\ntheme[title]=\"#3c3836\"\ntheme[hi_fg]=\"#076678\"\n"
+             "theme[selected_bg]=\"#ebdbb2\"\ntheme[selected_fg]=\"#b57614\"\ntheme[inactive_fg]=\"#7c6f64\"\n"
+             "theme[cpu_box]=\"#8f3f71\"\ntheme[mem_box]=\"#79740e\"\ntheme[div_line]=\"#d5c4a1\"\n"
+             "theme[used_start]=\"#79740e\"\ntheme[available_mid]=\"#b57614\"\ntheme[available_end]=\"#9d0006\"\n"},
+             
+            {"nord.conf",
+             "# Nord Theme\n"
+             "theme[main_bg]=\"#2e3440\"\ntheme[main_fg]=\"#d8dee9\"\ntheme[title]=\"#e5e9f0\"\ntheme[hi_fg]=\"#88c0d0\"\n"
+             "theme[selected_bg]=\"#3b4252\"\ntheme[selected_fg]=\"#88c0d0\"\ntheme[inactive_fg]=\"#4c566a\"\n"
+             "theme[cpu_box]=\"#b48ead\"\ntheme[mem_box]=\"#a3be8c\"\ntheme[div_line]=\"#434c5e\"\n"
+             "theme[used_start]=\"#a3be8c\"\ntheme[available_mid]=\"#ebcb8b\"\ntheme[available_end]=\"#bf616a\"\n"},
+             
+            {"one_dark.conf",
+             "# One Dark\n"
+             "theme[main_bg]=\"#282c34\"\ntheme[main_fg]=\"#abb2bf\"\ntheme[title]=\"#abb2bf\"\ntheme[hi_fg]=\"#61afef\"\n"
+             "theme[selected_bg]=\"#3e4452\"\ntheme[selected_fg]=\"#61afef\"\ntheme[inactive_fg]=\"#5c6370\"\n"
+             "theme[cpu_box]=\"#c678dd\"\ntheme[mem_box]=\"#98c379\"\ntheme[div_line]=\"#4b5263\"\n"
+             "theme[used_start]=\"#98c379\"\ntheme[available_mid]=\"#e5c07b\"\ntheme[available_end]=\"#e06c75\"\n"},
+             
+            {"solarized_dark.conf",
+             "# Solarized Dark\n"
+             "theme[main_bg]=\"#002b36\"\ntheme[main_fg]=\"#839496\"\ntheme[title]=\"#93a1a1\"\ntheme[hi_fg]=\"#268bd2\"\n"
+             "theme[selected_bg]=\"#073642\"\ntheme[selected_fg]=\"#b58900\"\ntheme[inactive_fg]=\"#586e75\"\n"
+             "theme[cpu_box]=\"#d33682\"\ntheme[mem_box]=\"#859900\"\ntheme[div_line]=\"#073642\"\n"
+             "theme[used_start]=\"#859900\"\ntheme[available_mid]=\"#b58900\"\ntheme[available_end]=\"#dc322f\"\n"},
+             
+            {"everforest_dark.conf",
+             "# Everforest Dark\n"
+             "theme[main_bg]=\"#2b3339\"\ntheme[main_fg]=\"#d3c6aa\"\ntheme[title]=\"#d3c6aa\"\ntheme[hi_fg]=\"#7fbbb3\"\n"
+             "theme[selected_bg]=\"#323c41\"\ntheme[selected_fg]=\"#dbbc7f\"\ntheme[inactive_fg]=\"#859289\"\n"
+             "theme[cpu_box]=\"#d699b6\"\ntheme[mem_box]=\"#a7c080\"\ntheme[div_line]=\"#3a454a\"\n"
+             "theme[used_start]=\"#a7c080\"\ntheme[available_mid]=\"#dbbc7f\"\ntheme[available_end]=\"#e67e80\"\n"}
+        };
+        
+        for (const auto& t : defaults) {
+            std::filesystem::path p = theme_dir / t.name;
+            if (!std::filesystem::exists(p)) {
+                std::ofstream f(p);
+                f << t.content;
+            }
+        }
+    }
+
+    void refresh_themes_list() {
+        theme_names_.clear();
+        char* home = getenv("HOME");
+        std::filesystem::path theme_dir = std::string(home ? home : ".") + "/.config/mstorage/themes";
+        
+        ensure_default_themes(theme_dir);
+        
+        if (std::filesystem::exists(theme_dir)) {
+            for (const auto& entry : std::filesystem::directory_iterator(theme_dir)) {
+                if (entry.path().extension() == ".conf") {
+                    theme_names_.push_back(entry.path().stem().string());
+                }
+            }
+        }
+        std::sort(theme_names_.begin(), theme_names_.end());
+        if (theme_names_.empty()) {
+            theme_names_.push_back("default");
+        }
+        theme_selected_ = 0;
+    }
+
+    void apply_selected_theme() {
+        if (theme_selected_ < 0 || theme_selected_ >= static_cast<int>(theme_names_.size())) return;
+        std::string theme_name = theme_names_[theme_selected_];
+        char* home = getenv("HOME");
+        std::filesystem::path theme_path = std::string(home ? home : ".") + "/.config/mstorage/themes/" + theme_name + ".conf";
+        theme_ = ThemeManager::load_from_file(theme_path);
+        
+        std::filesystem::path default_conf_path = std::string(home ? home : ".") + "/.config/mstorage/themes/default.conf";
+        std::error_code ec;
+        std::filesystem::copy_file(theme_path, default_conf_path, std::filesystem::copy_options::overwrite_existing, ec);
+    }
+
+    void open_settings() {
+        settings_selected_ = 0;
+        settings_status_ = "";
+        active_tab_ = 8;
+    }
+
+    void open_themes() {
+        refresh_themes_list();
+        active_tab_ = 9;
+    }
+
     void fetch_recursive_all(moodle::MoodleClient& client, const std::string& cookie, const std::string& path, std::vector<models::MoodleFile>& out_files) {
         auto files = client.list_files(cookie, path);
         if (!files) return;
@@ -215,6 +365,21 @@ private:
                 } else {
                     return element | ftxui::color(theme_.inactive_fg) | ftxui::border;
                 }
+            }
+        };
+        return opt;
+    }
+
+    ftxui::MenuOption make_menu_option() {
+        ftxui::MenuOption opt;
+        opt.entries_option.transform = [this](const ftxui::EntryState& s) {
+            auto element = ftxui::text(s.label);
+            if (s.focused) {
+                return element | ftxui::bold | ftxui::color(theme_.selected_fg) | ftxui::bgcolor(theme_.selected_bg);
+            } else if (s.active) {
+                return element | ftxui::bold | ftxui::color(theme_.selected_fg);
+            } else {
+                return element | ftxui::color(theme_.main_fg);
             }
         };
         return opt;
@@ -652,10 +817,13 @@ private:
         download_path_ = "";
         download_status_ = "";
         delete_status_ = "";
+        settings_status_ = "";
     }
 
 public:
     ftxui::Component get_root_component(std::function<void()> exit_callback = [](){}) {
+        exit_cb_ = exit_callback;
+
         // --- Login Screen Components ---
         input_url_ = ftxui::Input(&login_url_, "https://...");
         input_username_ = ftxui::Input(&login_username_, "Username (CPF)");
@@ -740,7 +908,7 @@ public:
         });
 
         // --- History Dialog Components ---
-        history_menu_ = ftxui::Menu(&history_entries_, &history_selected_);
+        history_menu_ = ftxui::Menu(&history_entries_, &history_selected_, make_menu_option());
         btn_history_close_ = ftxui::Button("Close", [this]() {
             close_dialog();
         }, make_button_option(false));
@@ -749,18 +917,71 @@ public:
             btn_history_close_
         });
 
+        // --- Main Menu Dialog Components ---
+        main_menu_ = ftxui::Menu(&main_menu_entries_, &main_menu_selected_, make_menu_option());
+        btn_main_menu_ok_ = ftxui::Button("Select", [this]() {
+            if (main_menu_selected_ == 0) {
+                open_settings();
+            } else if (main_menu_selected_ == 1) {
+                if (exit_cb_) exit_cb_();
+            }
+        }, make_button_option(true));
+        btn_main_menu_cancel_ = ftxui::Button("Cancel", [this]() {
+            close_dialog();
+        }, make_button_option(false));
+        main_menu_container_ = ftxui::Container::Vertical({
+            main_menu_,
+            btn_main_menu_ok_,
+            btn_main_menu_cancel_
+        });
+
+        // --- Settings Dialog Components ---
+        settings_menu_ = ftxui::Menu(&settings_entries_, &settings_selected_, make_menu_option());
+        btn_settings_ok_ = ftxui::Button("Select", [this]() {
+            if (settings_selected_ == 0) {
+                open_themes();
+            } else if (settings_selected_ == 1) {
+                settings_status_ = "Clear Data not implemented yet.";
+            }
+        }, make_button_option(true));
+        btn_settings_cancel_ = ftxui::Button("Back", [this]() {
+            active_tab_ = 7;
+        }, make_button_option(false));
+        settings_container_ = ftxui::Container::Vertical({
+            settings_menu_,
+            btn_settings_ok_,
+            btn_settings_cancel_
+        });
+
+        // --- Themes Dialog Components ---
+        theme_menu_ = ftxui::Menu(&theme_names_, &theme_selected_, make_menu_option());
+        btn_theme_ok_ = ftxui::Button("Apply", [this]() {
+            apply_selected_theme();
+        }, make_button_option(true));
+        btn_theme_cancel_ = ftxui::Button("Back", [this]() {
+            active_tab_ = 8;
+        }, make_button_option(false));
+        theme_container_ = ftxui::Container::Vertical({
+            theme_menu_,
+            btn_theme_ok_,
+            btn_theme_cancel_
+        });
+
         // --- Browser Components ---
-        file_menu_ = ftxui::Menu(&file_names_, &selected_);
+        file_menu_ = ftxui::Menu(&file_names_, &selected_, make_menu_option());
         
         // Main Tab Container
         tab_container_ = ftxui::Container::Tab({
-            file_menu_,         // 0: Browser
-            login_container_,   // 1: Login
-            mkdir_container_,   // 2: Mkdir
-            upload_container_,  // 3: Upload
-            history_container_, // 4: History
-            download_container_,// 5: Download
-            delete_container_   // 6: Delete
+            file_menu_,          // 0: Browser
+            login_container_,    // 1: Login
+            mkdir_container_,    // 2: Mkdir
+            upload_container_,   // 3: Upload
+            history_container_,  // 4: History
+            download_container_, // 5: Download
+            delete_container_,   // 6: Delete
+            main_menu_container_,// 7: Main Menu
+            settings_container_, // 8: Settings
+            theme_container_     // 9: Themes
         }, &active_tab_);
 
         auto renderer = ftxui::Renderer(tab_container_, [this] {
@@ -815,10 +1036,12 @@ public:
                 ftxui::text(" [u] Upload ") | ftxui::color(theme_.hi_fg),
                 ftxui::text(" [Enter] Download ") | ftxui::color(theme_.hi_fg),
                 ftxui::text(" [d] Delete ") | ftxui::color(theme_.hi_fg),
-                ftxui::text(" [m] Mkdir ") | ftxui::color(theme_.hi_fg),
+                ftxui::text(" [n] Mkdir ") | ftxui::color(theme_.hi_fg),
                 ftxui::text(" [h] History ") | ftxui::color(theme_.hi_fg),
-                ftxui::text(" [s] Select ") | ftxui::color(theme_.hi_fg),
+                ftxui::text(" [Space] Select ") | ftxui::color(theme_.hi_fg),
                 ftxui::text(" [◀/▶] Collapse/Expand ") | ftxui::color(theme_.hi_fg),
+                ftxui::text(" [s] Settings ") | ftxui::color(theme_.hi_fg),
+                ftxui::text(" [m] Menu ") | ftxui::color(theme_.hi_fg),
                 ftxui::filler(),
                 ftxui::text(loading_ ? " UPDATING... " : " READY ") | ftxui::bold | ftxui::color(loading_ ? theme_.hi_fg : theme_.secondary_box),
             });
@@ -956,6 +1179,55 @@ public:
                 return ftxui::dbox({ main_layout, ftxui::clear_under(dialog) });
             }
 
+            if (active_tab_ == 7) {
+                // Main Menu Dialog
+                auto dialog = ftxui::window(ftxui::text(" Main Menu ") | ftxui::bold | ftxui::color(theme_.title),
+                    ftxui::vbox({
+                        main_menu_->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 3),
+                        ftxui::separator() | ftxui::color(theme_.div_line),
+                        ftxui::hbox({
+                            btn_main_menu_ok_->Render(),
+                            ftxui::text("   "),
+                            btn_main_menu_cancel_->Render()
+                        }) | ftxui::center
+                    })
+                ) | ftxui::color(theme_.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::center;
+                return ftxui::dbox({ main_layout, ftxui::clear_under(dialog) });
+            }
+
+            if (active_tab_ == 8) {
+                // Settings Dialog
+                auto dialog = ftxui::window(ftxui::text(" Settings ") | ftxui::bold | ftxui::color(theme_.title),
+                    ftxui::vbox({
+                        settings_menu_->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 3),
+                        ftxui::separator() | ftxui::color(theme_.div_line),
+                        ftxui::hbox({
+                            btn_settings_ok_->Render(),
+                            ftxui::text("   "),
+                            btn_settings_cancel_->Render()
+                        }) | ftxui::center,
+                        ftxui::text(settings_status_) | ftxui::color(theme_.progress_high) | ftxui::center
+                    })
+                ) | ftxui::color(theme_.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 40) | ftxui::center;
+                return ftxui::dbox({ main_layout, ftxui::clear_under(dialog) });
+            }
+
+            if (active_tab_ == 9) {
+                // Themes Dialog
+                auto dialog = ftxui::window(ftxui::text(" Select Theme ") | ftxui::bold | ftxui::color(theme_.title),
+                    ftxui::vbox({
+                        theme_menu_->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 10),
+                        ftxui::separator() | ftxui::color(theme_.div_line),
+                        ftxui::hbox({
+                            btn_theme_ok_->Render(),
+                            ftxui::text("   "),
+                            btn_theme_cancel_->Render()
+                        }) | ftxui::center
+                    })
+                ) | ftxui::color(theme_.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::center;
+                return ftxui::dbox({ main_layout, ftxui::clear_under(dialog) });
+            }
+
             return main_layout;
         });
 
@@ -1003,13 +1275,22 @@ public:
                 open_history();
                 return true;
             }
-            if (event == ftxui::Event::Character('m')) {
+            if (event == ftxui::Event::Character('n')) {
                 mkdir_name_ = "";
                 mkdir_status_ = "";
-                active_tab_ = 2; // Mkdir Dialog
+                active_tab_ = 2; // Mkdir Dialog (now bound to 'n' for new folder)
                 return true;
             }
             if (event == ftxui::Event::Character('s')) {
+                open_settings();
+                return true;
+            }
+            if (event == ftxui::Event::Character('m')) {
+                active_tab_ = 7;
+                main_menu_selected_ = 0;
+                return true;
+            }
+            if (event == ftxui::Event::Character(' ')) {
                 if (!files_.empty() && selected_ < static_cast<int>(files_.size())) {
                     const auto& file = files_[selected_];
                     std::string item_key = file.filepath + "/" + file.filename;
@@ -1079,11 +1360,14 @@ private:
     std::thread refresh_thread_;
     std::thread action_thread_;
     ftxui::ScreenInteractive* screen_ = nullptr;
-    int active_tab_ = 0; // 0: Browser, 1: Login, 2: Mkdir, 3: Upload, 4: History, 5: Download, 6: Delete
+    int active_tab_ = 0; // 0: Browser, 1: Login, 2: Mkdir, 3: Upload, 4: History, 5: Download, 6: Delete, 7: Main Menu, 8: Settings, 9: Themes
 
     // Multi-selection and collapse sets
     std::set<std::string> selected_paths_;
     std::set<std::string> collapsed_folders_;
+
+    // exit callback helper
+    std::function<void()> exit_cb_;
 
     // Login inputs
     std::string login_url_ = "https://e-aula.ufpel.edu.br";
@@ -1112,6 +1396,19 @@ private:
     // History inputs
     std::vector<std::string> history_entries_;
     int history_selected_ = 0;
+
+    // Main Menu inputs
+    std::vector<std::string> main_menu_entries_ = {"Settings", "Quit"};
+    int main_menu_selected_ = 0;
+
+    // Settings inputs
+    std::vector<std::string> settings_entries_ = {"Themes", "Clear Data"};
+    int settings_selected_ = 0;
+    std::string settings_status_ = "";
+
+    // Themes inputs
+    std::vector<std::string> theme_names_;
+    int theme_selected_ = 0;
 
     // Components
     ftxui::Component file_menu_;
@@ -1147,6 +1444,21 @@ private:
     ftxui::Component history_menu_;
     ftxui::Component btn_history_close_;
     ftxui::Component history_container_;
+
+    ftxui::Component main_menu_;
+    ftxui::Component btn_main_menu_ok_;
+    ftxui::Component btn_main_menu_cancel_;
+    ftxui::Component main_menu_container_;
+
+    ftxui::Component settings_menu_;
+    ftxui::Component btn_settings_ok_;
+    ftxui::Component btn_settings_cancel_;
+    ftxui::Component settings_container_;
+
+    ftxui::Component theme_menu_;
+    ftxui::Component btn_theme_ok_;
+    ftxui::Component btn_theme_cancel_;
+    ftxui::Component theme_container_;
 
     ftxui::Component tab_container_;
 };
