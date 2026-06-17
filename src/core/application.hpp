@@ -75,6 +75,12 @@ public:
             return app_.exit(e);
         }
 
+        if (app_.get_subcommands().empty()) {
+            mstorage::tui::TuiApplication tui_app(session_manager_, http_client_, history_manager_);
+            tui_app.run();
+            return 0;
+        }
+
         if (app_.got_subcommand("login")) {
             mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_);
             return handle_result(cmd.execute(), "Login");
@@ -127,8 +133,6 @@ public:
             return handle_result(cmd.execute(), "Mkdir");
         }
 
-        mstorage::tui::TuiApplication tui_app(session_manager_, http_client_, history_manager_);
-        tui_app.run();
         return 0;
     }
 
