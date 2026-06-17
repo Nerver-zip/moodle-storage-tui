@@ -164,3 +164,49 @@ TEST_F(TuiTest, ArrowKeysAndSelectionEventHandling) {
     bool right_handled = component->OnEvent(ftxui::Event::ArrowRight);
     EXPECT_FALSE(right_handled);
 }
+
+TEST_F(TuiTest, ThemeSelectionIntegration) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    auto component = app.get_root_component();
+    
+    // Press 's' to open Settings
+    bool s_pressed = component->OnEvent(ftxui::Event::Character('s'));
+    EXPECT_TRUE(s_pressed);
+    
+    // Press Return on Themes option in Settings to open Themes screen
+    bool settings_enter = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(settings_enter);
+    
+    // Press Return on the first theme in the list to apply it
+    bool theme_enter = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(theme_enter);
+}
+
+TEST_F(TuiTest, SettingsClearActionsIntegration) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    auto component = app.get_root_component();
+    
+    // Press 's' to open Settings
+    bool s_pressed = component->OnEvent(ftxui::Event::Character('s'));
+    EXPECT_TRUE(s_pressed);
+    
+    // Move selection down to Clear History (index 1)
+    bool down_pressed1 = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(down_pressed1);
+    
+    // Press Return on Clear History option
+    bool history_enter = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(history_enter);
+    
+    // Move selection down to Clear Data (index 2)
+    bool down_pressed2 = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(down_pressed2);
+    
+    // Press Return on Clear Data option
+    bool data_enter = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(data_enter);
+}

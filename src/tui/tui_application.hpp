@@ -370,7 +370,7 @@ private:
         return opt;
     }
 
-    ftxui::MenuOption make_menu_option() {
+    ftxui::MenuOption make_menu_option(std::function<void()> on_enter = nullptr) {
         ftxui::MenuOption opt;
         opt.entries_option.transform = [this](const ftxui::EntryState& s) {
             auto element = ftxui::text(s.label);
@@ -382,6 +382,9 @@ private:
                 return element | ftxui::color(theme_.main_fg);
             }
         };
+        if (on_enter) {
+            opt.on_enter = on_enter;
+        }
         return opt;
     }
 
@@ -918,7 +921,13 @@ public:
         });
 
         // --- Main Menu Dialog Components ---
-        main_menu_ = ftxui::Menu(&main_menu_entries_, &main_menu_selected_, make_menu_option());
+        main_menu_ = ftxui::Menu(&main_menu_entries_, &main_menu_selected_, make_menu_option([this]() {
+            if (main_menu_selected_ == 0) {
+                open_settings();
+            } else if (main_menu_selected_ == 1) {
+                if (exit_cb_) exit_cb_();
+            }
+        }));
         btn_main_menu_ok_ = ftxui::Button("Select", [this]() {
             if (main_menu_selected_ == 0) {
                 open_settings();
@@ -936,12 +945,60 @@ public:
         });
 
         // --- Settings Dialog Components ---
-        settings_menu_ = ftxui::Menu(&settings_entries_, &settings_selected_, make_menu_option());
+        settings_menu_ = ftxui::Menu(&settings_entries_, &settings_selected_, make_menu_option([this]() {
+            if (settings_selected_ == 0) {
+                open_themes();
+            } else if (settings_selected_ == 1) {
+                auto res = history_manager_.clear();
+                if (res) {
+                    settings_status_ = "History cleared successfully.";
+                    history_entries_.clear();
+                    history_entries_.push_back("<No history found>");
+                    history_selected_ = 0;
+                } else {
+                    settings_status_ = "Failed to clear history.";
+                }
+            } else if (settings_selected_ == 2) {
+                auto res = session_manager_.clear_credentials();
+                if (res) {
+                    settings_status_ = "Credentials and session cleared.";
+                    all_files_.clear();
+                    files_.clear();
+                    file_names_ = {"Loading..."};
+                    selected_ = 0;
+                    selected_paths_.clear();
+                    active_tab_ = 1;
+                } else {
+                    settings_status_ = "Failed to clear data.";
+                }
+            }
+        }));
         btn_settings_ok_ = ftxui::Button("Select", [this]() {
             if (settings_selected_ == 0) {
                 open_themes();
             } else if (settings_selected_ == 1) {
-                settings_status_ = "Clear Data not implemented yet.";
+                auto res = history_manager_.clear();
+                if (res) {
+                    settings_status_ = "History cleared successfully.";
+                    history_entries_.clear();
+                    history_entries_.push_back("<No history found>");
+                    history_selected_ = 0;
+                } else {
+                    settings_status_ = "Failed to clear history.";
+                }
+            } else if (settings_selected_ == 2) {
+                auto res = session_manager_.clear_credentials();
+                if (res) {
+                    settings_status_ = "Credentials and session cleared.";
+                    all_files_.clear();
+                    files_.clear();
+                    file_names_ = {"Loading..."};
+                    selected_ = 0;
+                    selected_paths_.clear();
+                    active_tab_ = 1;
+                } else {
+                    settings_status_ = "Failed to clear data.";
+                }
             }
         }, make_button_option(true));
         btn_settings_cancel_ = ftxui::Button("Back", [this]() {
@@ -954,7 +1011,9 @@ public:
         });
 
         // --- Themes Dialog Components ---
-        theme_menu_ = ftxui::Menu(&theme_names_, &theme_selected_, make_menu_option());
+        theme_menu_ = ftxui::Menu(&theme_names_, &theme_selected_, make_menu_option([this]() {
+            apply_selected_theme();
+        }));
         btn_theme_ok_ = ftxui::Button("Apply", [this]() {
             apply_selected_theme();
         }, make_button_option(true));
@@ -1402,7 +1461,7 @@ private:
     int main_menu_selected_ = 0;
 
     // Settings inputs
-    std::vector<std::string> settings_entries_ = {"Themes", "Clear Data"};
+    std::vector<std::string> settings_entries_ = {"Themes", "Clear History", "Clear Data"};
     int settings_selected_ = 0;
     std::string settings_status_ = "";
 
