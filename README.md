@@ -30,37 +30,33 @@ O **Moodle Storage** é uma ferramenta de linha de comando (CLI) e interface de 
 
 ---
 
-## 🛠️ Requisitos e Instalação
+## 🛠️ Instalação Rápida (Linux)
 
-### Dependências do Sistema
+O **Moodle Storage** é distribuído como um binário pré-compilado para Linux x86_64.
 
-O projeto utiliza bibliotecas modernas em C++ e exige alguns pacotes no sistema operacional.
+### 1. Baixar o Binário
+Acesse a página de **[Releases](https://github.com/Nerver-zip/moodle-storage/releases)** e baixe a versão mais recente (`.tar.gz`).
 
-**Ubuntu / Debian:**
+### 2. Instalar no Sistema
+Extraia o binário e mova-o para o seu PATH:
 
 ```bash
-sudo apt-get update
-sudo apt-get install build-essential cmake pkg-config libcurl4-openssl-dev libsqlite3-dev libssl-dev libsecret-1-dev
+tar -xzvf moodle-storage-linux-amd64.tar.gz
+sudo mv mstorage /usr/local/bin/
+```
+
+### 3. Dependências de Execução (Runtime)
+Certifique-se de que as bibliotecas base estão instaladas:
+
+**Ubuntu / Debian:**
+```bash
+sudo apt update && sudo apt install libsecret-1-0 libcurl4 libsqlite3-0 libssl3
 ```
 
 **Arch Linux:**
-
 ```bash
-sudo pacman -S base-devel cmake pkgconf curl sqlite openssl libsecret
+sudo pacman -S libsecret curl sqlite openssl
 ```
-
-### Compilando o Projeto
-
-O projeto usa o `CPM` para gerenciar as dependências de C++ (FTXUI, CPR, nlohmann/json, CLI11, spdlog, GTest) automaticamente.
-
-```bash
-git clone https://github.com/seu-usuario/moodle-storage.git
-cd moodle-storage
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release -j$(nproc)
-```
-
-O executável final estará disponível em `./build/moodle-storage`. Recomenda-se criar um alias ou movê-lo para `/usr/local/bin/mstorage`.
 
 ---
 

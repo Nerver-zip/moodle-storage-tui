@@ -31,12 +31,17 @@ public:
 
         GError* error = nullptr;
 
+        secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "wstoken", nullptr);
+        secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "web_cookie", nullptr);
+        
+        secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "credentials", nullptr);
+
         // Save wstoken
         if (!data.wstoken.empty()) {
             secret_password_store_sync(
                 get_schema(), SECRET_COLLECTION_DEFAULT, "Moodle Storage Token",
                 data.wstoken.c_str(), nullptr, &error,
-                "moodle_url", data.moodle_url.c_str(), "type", "wstoken", nullptr
+                "moodle_url", data.moodle_url.c_str(), "type", "wstoken", "username", "", nullptr
             );
         }
 
@@ -45,7 +50,7 @@ public:
             secret_password_store_sync(
                 get_schema(), SECRET_COLLECTION_DEFAULT, "Moodle Storage Cookie",
                 data.web_cookie.c_str(), nullptr, &error,
-                "moodle_url", data.moodle_url.c_str(), "type", "web_cookie", nullptr
+                "moodle_url", data.moodle_url.c_str(), "type", "web_cookie", "username", "", nullptr
             );
         }
 
