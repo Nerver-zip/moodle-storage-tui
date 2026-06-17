@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/release.yml'
 
 jobs:
   release:

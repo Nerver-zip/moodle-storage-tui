@@ -13,7 +13,7 @@
 
 O **Moodle Storage** é uma ferramenta de linha de comando (CLI) e interface de terminal (TUI) de alta performance escrita em C++23. Ele permite gerenciar a sua área de arquivos privados do Moodle diretamente do terminal, com suporte a uploads recursivos, exclusões em lote e downloads compactados nativamente no servidor.
 
-> ![TUI Dashboard Demo](assets/Demo.mp4)
+> ![TUI Dashboard Demo](assets/Demo.gif)
 
 ---
 
