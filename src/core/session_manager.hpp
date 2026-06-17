@@ -120,6 +120,33 @@ public:
         return data;
     }
 
+    std::expected<void, std::error_code> clear_credentials() {
+        // Clear from Keyring
+        GError* error = nullptr;
+        
+        // We read the URL to know what to delete
+        std::string url = "";
+        std::ifstream file(config_path_ / "session.json");
+        if (file.is_open()) {
+            nlohmann::json j;
+            try { file >> j; url = j.value("moodle_url", ""); } catch(...) {}
+        }
+
+        if (!url.empty()) {
+            secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", url.c_str(), "type", "wstoken", nullptr);
+            secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", url.c_str(), "type", "web_cookie", nullptr);
+            secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", url.c_str(), "type", "credentials", nullptr);
+            if (error) g_error_free(error);
+        }
+
+        // Delete session file
+        std::error_code ec;
+        std::filesystem::remove(config_path_ / "session.json", ec);
+        if (ec) return std::unexpected(ec);
+
+        return {};
+    }
+
 private:
     const SecretSchema* get_schema() {
         static const SecretSchema schema = {

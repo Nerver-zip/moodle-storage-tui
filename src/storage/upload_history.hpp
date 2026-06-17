@@ -77,6 +77,17 @@ public:
         return history;
     }
 
+    std::expected<void, std::error_code> clear() {
+        const char* sql = "DELETE FROM history;";
+        char* err_msg = nullptr;
+        if (sqlite3_exec(db_, sql, nullptr, nullptr, &err_msg) != SQLITE_OK) {
+            spdlog::error("Failed to clear history: {}", err_msg);
+            sqlite3_free(err_msg);
+            return std::unexpected(std::make_error_code(std::errc::io_error));
+        }
+        return {};
+    }
+
 private:
     void init_db() {
         if (sqlite3_open(db_path_.c_str(), &db_) != SQLITE_OK) {

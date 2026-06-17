@@ -13,6 +13,7 @@
 #include "commands/history_command.hpp"
 #include "commands/usage_command.hpp"
 #include "commands/mkdir_command.hpp"
+#include "commands/logout_command.hpp"
 #include "tui/tui_application.hpp"
 #include <iostream>
 #include <memory>
@@ -31,7 +32,10 @@ public:
         // Login command
         auto* login = app_.add_subcommand("login", "Login to Moodle");
         login->add_option("-u,--url", login_url_, "Moodle URL")->required();
-        
+
+        // Logout command
+        app_.add_subcommand("logout", "Clear saved credentials and tokens");
+
         // Upload command
         auto* upload = app_.add_subcommand("upload", "Upload file(s) or folder(s) to Moodle");
         upload->add_option("files", upload_file_paths_, "Paths to the local files or folders")->required();
@@ -53,7 +57,8 @@ public:
         del->add_flag("-r,--recursive", delete_recursive_, "Delete folders recursively");
 
         // History command
-        app_.add_subcommand("history", "Show upload history");
+        auto* history = app_.add_subcommand("history", "Show upload history");
+        history->add_flag("-c,--clear", history_clear_, "Clear upload history");
 
         // Usage command
         app_.add_subcommand("usage", "Show Moodle storage usage");
@@ -74,6 +79,11 @@ public:
             mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_);
             return handle_result(cmd.execute(), "Login");
         } 
+
+        if (app_.got_subcommand("logout")) {
+            mstorage::commands::LogoutCommand cmd(session_manager_);
+            return handle_result(cmd.execute(), "Logout");
+        }
         
         auto session = session_manager_.load();
         if (!session) return fail("Not logged in. Use 'login' command first.");
@@ -103,7 +113,7 @@ public:
         }
 
         if (app_.got_subcommand("history")) {
-            mstorage::commands::HistoryCommand cmd(history_manager_);
+            mstorage::commands::HistoryCommand cmd(history_manager_, history_clear_);
             return handle_result(cmd.execute(), "History");
         }
 
@@ -151,6 +161,7 @@ private:
     std::vector<std::string> delete_target_names_;
     std::string delete_remote_path_;
     bool delete_recursive_ = false;
+    bool history_clear_ = false;
     std::string mkdir_foldername_;
 };
 
