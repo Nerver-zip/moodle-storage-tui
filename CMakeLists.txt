@@ -5,6 +5,16 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Enable CCache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
+else()
+    message(STATUS "ccache not found, proceeding without it.")
+endif()
+
 # CPM.cmake - Dependency Manager
 set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM_0.38.2.cmake")
 if(NOT EXISTS "${CPM_DOWNLOAD_LOCATION}")
@@ -15,6 +25,9 @@ if(NOT EXISTS "${CPM_DOWNLOAD_LOCATION}")
     )
 endif()
 include("${CPM_DOWNLOAD_LOCATION}")
+
+# Prefer local system packages instead of building from source if available
+set(CPM_USE_LOCAL_PACKAGES ON)
 
 # Dependencies
 CPMAddPackage(

@@ -6,8 +6,8 @@ namespace mstorage::models {
 
 struct SessionData {
     std::string moodle_url;
-    std::string sesskey;
-    std::string cookie;
+    std::string wstoken;    // Permanent Web Service Token
+    std::string web_cookie; // Temporary MoodleSession cookie
 };
 
 struct FileInfo {

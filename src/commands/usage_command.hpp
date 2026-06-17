@@ -3,8 +3,6 @@
 #include "moodle/moodle_client.hpp"
 #include "core/session_manager.hpp"
 #include <iostream>
-#include <iomanip>
-#include <format>
 
 namespace mstorage::commands {
 
@@ -14,39 +12,42 @@ public:
         : moodle_client_(moodle_client), session_manager_(session_manager) {}
 
     std::expected<void, std::error_code> execute() override {
-        auto session = session_manager_.load();
-        if (!session) return std::unexpected(session.error());
-
-        auto usage = moodle_client_.get_usage(session->cookie);
+        auto usage = moodle_client_.get_usage();
         if (!usage) return std::unexpected(usage.error());
-
-        double used_mb = static_cast<double>(usage->used_bytes) / (1024.0 * 1024.0);
-        double total_mb = static_cast<double>(usage->total_bytes) / (1024.0 * 1024.0);
-        double percent = (used_mb / total_mb) * 100.0;
 
         std::cout << "\nMoodle Storage Usage Report\n";
         std::cout << "===========================\n";
-        std::cout << std::format("Used:  {:.2f} MB\n", used_mb);
-        std::cout << std::format("Total: {:.2f} MB\n", total_mb);
-        
+        std::cout << "Used:  " << format_size(usage->used_bytes) << "\n";
+        std::cout << "Total: " << format_size(usage->total_bytes) << "\n";
+
+        double percent = (static_cast<double>(usage->used_bytes) / usage->total_bytes) * 100.0;
         int bar_width = 40;
-        int pos = static_cast<int>(bar_width * (percent / 100.0));
-        
+        int pos = (bar_width * percent) / 100.0;
+
         std::cout << "Usage: [";
         for (int i = 0; i < bar_width; ++i) {
             if (i < pos) std::cout << "#";
             else std::cout << " ";
         }
-        std::cout << std::format("] {:.1f}%\n", percent);
-
-        if (percent > 90.0) {
-            std::cout << "\nWARNING: You have used over 90% of your storage limit!\n";
-        }
+        std::cout << "] " << std::fixed << std::setprecision(1) << percent << "%\n";
 
         return {};
     }
 
 private:
+    std::string format_size(uintmax_t bytes) {
+        const char* units[] = {"B", "KB", "MB", "GB"};
+        int i = 0;
+        double size = bytes;
+        while (size > 1024 && i < 3) {
+            size /= 1024;
+            i++;
+        }
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.2f %s", size, units[i]);
+        return std::string(buf);
+    }
+
     moodle::MoodleClient& moodle_client_;
     core::SessionManager& session_manager_;
 };

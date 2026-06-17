@@ -387,7 +387,7 @@ private:
             auto upload_single_file = [&](const std::string& local_path, const std::string& remote_dir) -> std::expected<void, std::error_code> {
                 auto res = client->upload_file(local_path, remote_dir, *draft_info, session->web_cookie);
                 if (res) {
-                    history_manager_.record_upload(std::filesystem::path(local_path).filename().string(), "TUI");
+                    (void)history_manager_.record_upload(std::filesystem::path(local_path).filename().string(), "TUI");
                 }
                 return res;
             };
@@ -548,7 +548,7 @@ private:
                     if (refreshed) {
                         active_cookie = *refreshed;
                         session->web_cookie = active_cookie;
-                        session_manager_.save(*session);
+                        (void)session_manager_.save(*session);
                         draft_info = client->get_draft_info(active_cookie);
                     }
                 }

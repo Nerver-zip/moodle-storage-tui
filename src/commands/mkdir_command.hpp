@@ -3,6 +3,7 @@
 #include "moodle/moodle_client.hpp"
 #include "core/session_manager.hpp"
 #include <iostream>
+#include <fstream>
 
 namespace mstorage::commands {
 
@@ -16,19 +17,15 @@ public:
         if (!session) return std::unexpected(session.error());
 
         std::cout << "Fetching draft info...\n";
-        auto draft_info = moodle_client_.get_draft_info(session->cookie);
+        auto draft_info = moodle_client_.get_draft_info(session->web_cookie);
         if (!draft_info) return std::unexpected(draft_info.error());
 
         std::cout << "Creating folder: " << folder_name_ << "\n";
-        auto mkdir_result = moodle_client_.create_folder(folder_name_, "/", *draft_info, session->cookie);
-        if (!mkdir_result) return std::unexpected(mkdir_result.error());
+        auto res = moodle_client_.create_folder(folder_name_, "/", *draft_info, session->web_cookie);
+        if (!res) return std::unexpected(res.error());
 
         std::cout << "Committing changes...\n";
-        auto commit_result = moodle_client_.commit_draft(*draft_info, session->cookie);
-        if (!commit_result) return std::unexpected(commit_result.error());
-
-        std::cout << "Folder created successfully!\n";
-        return {};
+        return moodle_client_.commit_draft(*draft_info, session->web_cookie);
     }
 
 private:

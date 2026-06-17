@@ -12,34 +12,25 @@ namespace mstorage::commands {
 
 class DownloadCommand : public Command {
 public:
-    DownloadCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, std::vector<std::string> filenames, bool recursive = false)
-        : moodle_client_(moodle_client), session_manager_(session_manager), filenames_(std::move(filenames)), recursive_(recursive) {}
+    DownloadCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, 
+                    std::vector<std::string> filenames, bool recursive)
+        : moodle_client_(moodle_client), session_manager_(session_manager), 
+          filenames_(std::move(filenames)), recursive_(recursive) {}
 
     std::expected<void, std::error_code> execute() override {
         auto session = session_manager_.load();
         if (!session) return std::unexpected(session.error());
 
         std::cout << "Fetching file list...\n";
-        auto files = moodle_client_.list_files(session->cookie);
+        auto files = moodle_client_.list_files();
         if (!files) return std::unexpected(files.error());
 
-        auto draft_info = moodle_client_.get_draft_info(session->cookie);
-        if (!draft_info) return std::unexpected(draft_info.error());
+        // Get draft info for potential ZIP compression (AJAX)
+        auto draft_info = moodle_client_.get_draft_info(session->web_cookie);
 
-        for (auto target_name : filenames_) {
-            // Normalize target_name: remove trailing slash if any for matching
-            if (target_name.length() > 1 && target_name.back() == '/') {
-                target_name.pop_back();
-            }
-
-            spdlog::debug("Searching for target: {}", target_name);
-            
+        for (const auto& target_name : filenames_) {
             auto it = std::find_if(files->begin(), files->end(), [&](const models::MoodleFile& f) {
-                if (f.filename == ".") {
-                    std::string f_name = get_folder_name(f.filepath);
-                    return f_name == target_name;
-                }
-                return f.filename == target_name;
+                return f.filename == target_name || (f.filename == "." && get_folder_name(f.filepath) == target_name);
             });
 
             if (it == files->end()) {
@@ -48,32 +39,29 @@ public:
             }
 
             if (it->filename == ".") {
-                // It's a folder
+                // Folder
                 if (!recursive_) {
-                    std::cerr << "Error: '" << target_name << "' is a directory. Use -r to download as ZIP.\n";
+                    std::cerr << "Error: '" << target_name << "' is a directory. Use -r to download recursively.\n";
                     continue;
                 }
                 
-                std::cout << "Compressing folder '" << target_name << "' on server...\n";
-                auto zip_url = moodle_client_.zip_folder(it->filepath, *draft_info, session->cookie);
-                if (!zip_url) {
-                    std::cerr << "Failed to compress folder: " << zip_url.error().message() << "\n";
-                    continue;
+                std::cout << "Attempting native ZIP compression for '" << target_name << "'...\n";
+                if (draft_info) {
+                    auto zip_url = moodle_client_.zip_folder(it->filepath, *draft_info, session->web_cookie);
+                    if (zip_url) {
+                        std::string output_zip = target_name + ".zip";
+                        std::cout << "Downloading ZIP: " << output_zip << "...\n";
+                        (void)moodle_client_.download_file(*zip_url, output_zip, session->web_cookie);
+                        continue;
+                    }
                 }
-
-                std::string output_zip = target_name + ".zip";
-                std::cout << "Downloading ZIP: " << output_zip << "...\n";
-                auto res = moodle_client_.download_file(*zip_url, output_zip, session->cookie);
-                if (!res) {
-                    std::cerr << "Failed to download ZIP: " << res.error().message() << "\n";
-                }
+                
+                std::cout << "Falling back to individual file downloads...\n";
+                download_recursive(it->filepath, it->filepath, session->web_cookie);
             } else {
-                // It's a file
+                // File
                 std::cout << "Downloading file: " << target_name << "...\n";
-                auto result = moodle_client_.download_file(it->url, target_name, session->cookie);
-                if (!result) {
-                    std::cerr << "Failed to download file: " << target_name << " (" << result.error().message() << ")\n";
-                }
+                (void)moodle_client_.download_file(it->url, target_name, session->web_cookie);
             }
         }
 
@@ -81,14 +69,33 @@ public:
     }
 
 private:
+    void download_recursive(const std::string& remote_path, const std::string& base_remote_path, const std::string& cookie) {
+        auto files = moodle_client_.list_files("", remote_path);
+        if (!files) return;
+
+        for (const auto& file : *files) {
+            if (file.filename == ".") {
+                if (file.filepath != remote_path) {
+                    download_recursive(file.filepath, base_remote_path, cookie);
+                }
+            } else {
+                std::string rel = file.filepath.substr(base_remote_path.length());
+                std::filesystem::path local_dir = std::filesystem::path(get_folder_name(base_remote_path)) / rel;
+                std::filesystem::create_directories(local_dir);
+                
+                std::filesystem::path local_path = local_dir / file.filename;
+                std::cout << "  -> " << local_path.string() << "\n";
+                (void)moodle_client_.download_file(file.url, local_path.string(), cookie);
+            }
+        }
+    }
+
     std::string get_folder_name(const std::string& filepath) {
         if (filepath == "/") return "/";
         std::string clean_path = filepath;
         if (clean_path.back() == '/') clean_path.pop_back();
         auto pos = clean_path.find_last_of('/');
-        if (pos != std::string::npos) {
-            return clean_path.substr(pos + 1);
-        }
+        if (pos != std::string::npos) return clean_path.substr(pos + 1);
         return clean_path;
     }
 

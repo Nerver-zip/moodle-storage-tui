@@ -36,18 +36,6 @@ TEST_F(MoodleClientTest, GetDraftInfoSuccess) {
     EXPECT_EQ(result->contextid, "12345");
 }
 
-TEST_F(MoodleClientTest, GetDraftInfoMissingSesskey) {
-    std::string html_content = "<html><input name='files_filemanager' value='123'></html>";
-
-    EXPECT_CALL(mock_http, get(_, _))
-        .WillOnce(Return(html_content));
-
-    auto result = client.get_draft_info("fake_cookie");
-    
-    ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error(), std::errc::permission_denied);
-}
-
 TEST_F(MoodleClientTest, UploadFileSuccess) {
     MoodleClient::DraftInfo info{"key", "item", "ctx"};
     

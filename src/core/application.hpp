@@ -9,11 +9,12 @@
 #include "commands/upload_command.hpp"
 #include "commands/list_command.hpp"
 #include "commands/download_command.hpp"
-#include "commands/history_command.hpp"
 #include "commands/delete_command.hpp"
+#include "commands/history_command.hpp"
 #include "commands/usage_command.hpp"
 #include "commands/mkdir_command.hpp"
 #include "tui/tui_application.hpp"
+#include <iostream>
 #include <memory>
 
 namespace mstorage::core {
@@ -21,23 +22,10 @@ namespace mstorage::core {
 class Application {
 public:
     Application() : app_("Moodle Storage TUI") {
-        setup_cli();
+        setup_commands();
     }
 
-    int run(int argc, char** argv) {
-        utils::Logger::init();
-        
-        try {
-            app_.parse(argc, argv);
-        } catch (const CLI::ParseError& e) {
-            return app_.exit(e);
-        }
-
-        return execute();
-    }
-
-private:
-    void setup_cli() {
+    void setup_commands() {
         app_.require_subcommand(0, 1);
 
         // Login command
@@ -47,8 +35,8 @@ private:
         // Upload command
         auto* upload = app_.add_subcommand("upload", "Upload file(s) or folder(s) to Moodle");
         upload->add_option("files", upload_file_paths_, "Paths to the local files or folders")->required();
+        upload->add_option("-p,--path", upload_remote_path_, "Remote target path in Moodle")->default_val("/");
         upload->add_flag("-r,--recursive", upload_recursive_, "Upload folder contents recursively");
-        upload->add_option("-p,--path", upload_remote_path_, "Target remote path in Moodle")->default_val("/");
 
         // List command
         app_.add_subcommand("list", "List files in Moodle private area");
@@ -60,9 +48,9 @@ private:
 
         // Delete command
         auto* del = app_.add_subcommand("delete", "Delete file(s) or folder(s) from Moodle");
-        del->add_option("names", delete_target_names_, "Names of the files or folders to delete")->required();
-        del->add_flag("-r,--recursive", delete_recursive_, "Delete folder recursively");
-        del->add_option("-p,--path", delete_remote_path_, "Path where the items are located")->default_val("/");
+        del->add_option("targets", delete_target_names_, "Names of files or folders to delete")->required();
+        del->add_option("-p,--path", delete_remote_path_, "Remote path context")->default_val("/");
+        del->add_flag("-r,--recursive", delete_recursive_, "Delete folders recursively");
 
         // History command
         app_.add_subcommand("history", "Show upload history");
@@ -75,44 +63,41 @@ private:
         mkdir->add_option("foldername", mkdir_foldername_, "Name of the new folder")->required();
     }
 
-    int execute() {
+    int execute(int argc, char** argv) {
+        try {
+            app_.parse(argc, argv);
+        } catch (const CLI::ParseError& e) {
+            return app_.exit(e);
+        }
+
         if (app_.got_subcommand("login")) {
             mstorage::commands::LoginCommand cmd(session_manager_, http_client_, login_url_);
             return handle_result(cmd.execute(), "Login");
         } 
         
-        if (app_.got_subcommand("upload")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in. Use 'login' command first.");
+        auto session = session_manager_.load();
+        if (!session) return fail("Not logged in. Use 'login' command first.");
 
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
+        moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
+        moodle_client.set_wstoken(session->wstoken);
+        moodle_client.set_web_cookie(session->web_cookie);
+
+        if (app_.got_subcommand("upload")) {
             mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_paths_, upload_remote_path_, upload_recursive_);
             return handle_result(cmd.execute(), "Upload");
         }
 
         if (app_.got_subcommand("list")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in.");
-            
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
             mstorage::commands::ListCommand cmd(moodle_client, session_manager_);
             return handle_result(cmd.execute(), "List");
         }
 
         if (app_.got_subcommand("download")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in.");
-            
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
             mstorage::commands::DownloadCommand cmd(moodle_client, session_manager_, download_filenames_, download_recursive_);
             return handle_result(cmd.execute(), "Download");
         }
 
         if (app_.got_subcommand("delete")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in.");
-            
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
             mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_target_names_, delete_remote_path_, delete_recursive_);
             return handle_result(cmd.execute(), "Delete");
         }
@@ -123,49 +108,41 @@ private:
         }
 
         if (app_.got_subcommand("usage")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in.");
-            
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
             mstorage::commands::StorageUsageCommand cmd(moodle_client, session_manager_);
             return handle_result(cmd.execute(), "Usage");
         }
 
         if (app_.got_subcommand("mkdir")) {
-            auto session = session_manager_.load();
-            if (!session) return fail("Not logged in.");
-            
-            moodle::MoodleClient moodle_client(http_client_, session->moodle_url);
             mstorage::commands::MkdirCommand cmd(moodle_client, session_manager_, mkdir_foldername_);
             return handle_result(cmd.execute(), "Mkdir");
         }
 
-        // TUI Mode (Default)
-        tui::TuiApplication tui_app(session_manager_, http_client_);
+        mstorage::tui::TuiApplication tui_app(session_manager_, http_client_, history_manager_);
         tui_app.run();
         return 0;
     }
 
-    int handle_result(std::expected<void, std::error_code> result, std::string_view op) {
-        if (!result) {
-            std::cerr << op << " failed: " << result.error().message() << "\n";
+private:
+    int handle_result(const std::expected<void, std::error_code>& res, const std::string& cmd_name) {
+        if (!res) {
+            std::cerr << cmd_name << " failed: " << res.error().message() << "\n";
             return 1;
         }
         return 0;
     }
 
-    int fail(std::string_view msg) {
+    int fail(const std::string& msg) {
         std::cerr << msg << "\n";
         return 1;
     }
 
     CLI::App app_;
-    SessionManager session_manager_;
     network::CprClient http_client_;
+    core::SessionManager session_manager_;
     storage::HistoryManager history_manager_;
 
-    // CLI Options
-    std::string login_url_, login_cookie_;
+    // Command options
+    std::string login_url_;
     std::vector<std::string> upload_file_paths_;
     std::string upload_remote_path_;
     bool upload_recursive_ = false;

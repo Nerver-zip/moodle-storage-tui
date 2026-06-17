@@ -57,24 +57,29 @@ public:
 
             std::cout << "✅ Permanent token captured successfully!\n";
             
+            std::cout << "Do you want to save your credentials in the System Keyring for automated re-authentication? (Y/n): ";
+            std::string save_creds;
+            std::getline(std::cin, save_creds);
+            bool store = (save_creds.empty() || save_creds == "Y" || save_creds == "y");
+
             models::SessionData data {
                 .moodle_url = url_,
-                .sesskey = "TOKEN_AUTH",
-                .cookie = *token_res
+                .wstoken = *token_res,
+                .web_cookie = session_cookie
             };
 
-            auto res = session_manager_.save(data);
+            auto res = session_manager_.save(data, store ? username : "", store ? password : "");
             if (!res) {
                 std::cerr << "Failed to save session securely.\n";
                 return std::unexpected(res.error());
             }
             std::cout << "Secure authentication complete. You can now use all commands.\n";
         } else {
-            // Save temporary web session
+            // Save temporary web session only
             models::SessionData data {
                 .moodle_url = url_,
-                .sesskey = "TEMPORARY",
-                .cookie = session_cookie
+                .wstoken = "",
+                .web_cookie = session_cookie
             };
             auto res = session_manager_.save(data);
             if (!res) return std::unexpected(res.error());
