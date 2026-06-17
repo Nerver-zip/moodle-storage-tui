@@ -38,40 +38,40 @@ protected:
     }
 
     auto& get_visible_local_nodes(TuiApplication& app) {
-        return app.visible_local_nodes_;
+        return app.context_.visible_local_nodes;
     }
     auto& get_selected_local_node(TuiApplication& app) {
-        return app.selected_local_node_;
+        return app.context_.selected_local_node;
     }
     auto& get_upload_container(TuiApplication& app) {
-        return app.upload_container_;
+        return app.context_.upload_container;
     }
     auto& get_local_files_menu(TuiApplication& app) {
-        return app.local_files_menu_;
+        return app.context_.local_files_menu;
     }
     auto& get_all_files(TuiApplication& app) {
-        return app.all_files_;
+        return app.context_.all_files;
     }
     auto& get_files(TuiApplication& app) {
-        return app.files_;
+        return app.context_.files;
     }
     auto& get_selected(TuiApplication& app) {
-        return app.selected_;
+        return app.context_.selected;
     }
     auto& get_selected_paths(TuiApplication& app) {
-        return app.selected_paths_;
+        return app.context_.selected_paths;
     }
     auto& get_active_tab(TuiApplication& app) {
-        return app.active_tab_;
+        return app.context_.active_tab;
     }
     auto& get_download_path(TuiApplication& app) {
-        return app.download_path_;
+        return app.context_.download_path;
     }
     auto& get_loading(TuiApplication& app) {
-        return app.loading_;
+        return app.context_.loading;
     }
     void update_visible_files(TuiApplication& app) {
-        app.update_visible_files();
+        app.context_.update_visible_files();
     }
 
     std::filesystem::path temp_dir;

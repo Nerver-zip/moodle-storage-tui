@@ -55,10 +55,13 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 file(GLOB_RECURSE HEADERS "src/*.hpp")
 
-# Main executable
-add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE
+# Separate library sources (everything except main.cpp)
+set(LIB_SOURCES ${SOURCES})
+list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+
+add_library(mstorage_core STATIC ${LIB_SOURCES})
+target_link_libraries(mstorage_core
+    PUBLIC
     cpr::cpr
     nlohmann_json::nlohmann_json
     spdlog::spdlog
@@ -69,7 +72,11 @@ target_link_libraries(${PROJECT_NAME}
     ${SQLite3_LIBRARIES}
     ${libsecret_LIBRARIES}
 )
-target_include_directories(${PROJECT_NAME} PRIVATE ${SQLite3_INCLUDE_DIRS})
+target_include_directories(mstorage_core PUBLIC ${SQLite3_INCLUDE_DIRS})
+
+# Main executable
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE mstorage_core)
 
 # Automatically copy compile_commands.json to root
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
