@@ -37,6 +37,43 @@ protected:
         std::filesystem::remove_all(temp_dir);
     }
 
+    auto& get_visible_local_nodes(TuiApplication& app) {
+        return app.visible_local_nodes_;
+    }
+    auto& get_selected_local_node(TuiApplication& app) {
+        return app.selected_local_node_;
+    }
+    auto& get_upload_container(TuiApplication& app) {
+        return app.upload_container_;
+    }
+    auto& get_local_files_menu(TuiApplication& app) {
+        return app.local_files_menu_;
+    }
+    auto& get_all_files(TuiApplication& app) {
+        return app.all_files_;
+    }
+    auto& get_files(TuiApplication& app) {
+        return app.files_;
+    }
+    auto& get_selected(TuiApplication& app) {
+        return app.selected_;
+    }
+    auto& get_selected_paths(TuiApplication& app) {
+        return app.selected_paths_;
+    }
+    auto& get_active_tab(TuiApplication& app) {
+        return app.active_tab_;
+    }
+    auto& get_download_path(TuiApplication& app) {
+        return app.download_path_;
+    }
+    auto& get_loading(TuiApplication& app) {
+        return app.loading_;
+    }
+    void update_visible_files(TuiApplication& app) {
+        app.update_visible_files();
+    }
+
     std::filesystem::path temp_dir;
     MockHttpClient mock_http;
     std::unique_ptr<mstorage::storage::HistoryManager> hm;
@@ -210,3 +247,173 @@ TEST_F(TuiTest, SettingsClearActionsIntegration) {
     bool data_enter = component->OnEvent(ftxui::Event::Return);
     EXPECT_TRUE(data_enter);
 }
+
+TEST_F(TuiTest, UploadLocalFilesBrowserNavigation) {
+    auto old_path = std::filesystem::current_path();
+    auto test_root = temp_dir / "local_browser_test";
+    std::filesystem::create_directories(test_root / "subdir");
+    {
+        std::ofstream f1(test_root / "file1.txt");
+        f1 << "hello";
+        std::ofstream f2(test_root / "subdir" / "file2.txt");
+        f2 << "world";
+    }
+
+    std::filesystem::current_path(test_root);
+
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    auto component = app.get_root_component();
+
+    // Open upload dialog
+    bool u_pressed = component->OnEvent(ftxui::Event::Character('u'));
+    EXPECT_TRUE(u_pressed);
+
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(80), ftxui::Dimension::Fixed(24));
+    ftxui::Render(screen, component->Render());
+    std::string output = screen.ToString();
+
+    // Initially, file1.txt and subdir should be visible, but not file2.txt
+    EXPECT_TRUE(output.find("file1.txt") != std::string::npos);
+    EXPECT_TRUE(output.find("subdir") != std::string::npos);
+    EXPECT_TRUE(output.find("file2.txt") == std::string::npos);
+    EXPECT_TRUE(output.find(".. (Go up)") != std::string::npos);
+
+    // 1. Focus the menu (moves focus from input_moodle_path_)
+    bool arrow_down_to_menu = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(arrow_down_to_menu);
+    ftxui::Render(screen, component->Render());
+
+    // 2. Focus the container (first ArrowDown)
+    bool select_subdir = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(select_subdir);
+    ftxui::Render(screen, component->Render());
+
+    // 3. Move selection down to subdir (third ArrowDown)
+    bool arrow_down3 = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(arrow_down3);
+    ftxui::Render(screen, component->Render());
+
+    // 3. Expand subdir (ArrowRight)
+    bool expand_subdir = component->OnEvent(ftxui::Event::ArrowRight);
+    EXPECT_TRUE(expand_subdir);
+
+    // Render and verify file2.txt is now visible
+    ftxui::Render(screen, component->Render());
+    output = screen.ToString();
+    EXPECT_TRUE(output.find("file2.txt") != std::string::npos);
+
+    // 4. Collapse subdir (ArrowLeft)
+    bool collapse_subdir = component->OnEvent(ftxui::Event::ArrowLeft);
+    EXPECT_TRUE(collapse_subdir);
+
+    // Render and verify file2.txt is no longer visible
+    ftxui::Render(screen, component->Render());
+    output = screen.ToString();
+    EXPECT_TRUE(output.find("file2.txt") == std::string::npos);
+
+    // 5. Select file1.txt (ArrowDown)
+    bool select_file1 = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(select_file1);
+    ftxui::Render(screen, component->Render());
+
+    // 6. Toggle selection on file1.txt (Space)
+    bool space_file1 = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(space_file1);
+
+    // Render and verify selection checkbox ☑ is shown
+    ftxui::Render(screen, component->Render());
+    output = screen.ToString();
+    EXPECT_TRUE(output.find("☑") != std::string::npos);
+
+    // 7. Go up directory:
+    // Move selection back to index 0:
+    // We are at index 2 (file1.txt). Move up twice.
+    bool up_to_subdir = component->OnEvent(ftxui::Event::ArrowUp);
+    EXPECT_TRUE(up_to_subdir);
+    ftxui::Render(screen, component->Render());
+
+    bool up_to_parent = component->OnEvent(ftxui::Event::ArrowUp);
+    EXPECT_TRUE(up_to_parent);
+    ftxui::Render(screen, component->Render());
+
+    // Press Return on ".. (Go up)"
+    bool go_up = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(go_up);
+
+    // Render and verify local_browser_test is visible as a child directory now
+    ftxui::Render(screen, component->Render());
+    output = screen.ToString();
+    EXPECT_TRUE(output.find("local_browser_test") != std::string::npos);
+
+    std::filesystem::current_path(old_path);
+}
+
+TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    // Manually add root directory and one file to avoid async http network calls in this test
+    mstorage::models::MoodleFile root;
+    root.filename = "/";
+    root.filepath = "/";
+    root.size_f = "DIR";
+    root.size = 0;
+    root.datemodified = 0;
+    
+    mstorage::models::MoodleFile file1;
+    file1.filename = "test.txt";
+    file1.filepath = "/";
+    file1.size_f = "10B";
+    file1.size = 10;
+    file1.datemodified = 123456;
+    
+    std::vector<mstorage::models::MoodleFile> test_files = {root, file1};
+    get_all_files(app) = test_files;
+    get_loading(app) = false;
+    update_visible_files(app);
+    
+    auto component = app.get_root_component();
+    
+    // Check files_ list matches
+    EXPECT_EQ(get_files(app).size(), 2);
+    EXPECT_EQ(get_files(app)[0].filename, "/");
+    EXPECT_EQ(get_files(app)[1].filename, "test.txt");
+    
+    // 1. Try to select root folder (index 0) with Space
+    get_selected(app) = 0;
+    bool space_root = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(space_root);
+    EXPECT_TRUE(get_selected_paths(app).empty()); // should not select root folder
+    
+    // 2. Try to select file1 (index 1) with Space
+    get_selected(app) = 1;
+    bool space_file1 = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(space_file1);
+    EXPECT_FALSE(get_selected_paths(app).empty()); // should select file1
+    
+    // Clear selection
+    get_selected_paths(app).clear();
+    
+    // 3. Try to hit delete ('d') on root folder (index 0)
+    get_selected(app) = 0;
+    bool del_root = component->OnEvent(ftxui::Event::Character('d'));
+    EXPECT_TRUE(del_root);
+    EXPECT_NE(get_active_tab(app), 6); // active_tab_ should NOT be 6 (Delete Dialog)
+    
+    // 4. Try to hit delete ('d') on file1 (index 1)
+    get_selected(app) = 1;
+    bool del_file1 = component->OnEvent(ftxui::Event::Character('d'));
+    EXPECT_TRUE(del_file1);
+    EXPECT_EQ(get_active_tab(app), 6); // active_tab_ should be 6
+    get_active_tab(app) = 0; // reset
+    
+    // 5. Try to hit Return on root folder (index 0)
+    get_selected(app) = 0;
+    bool return_root = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(return_root);
+    EXPECT_EQ(get_active_tab(app), 5); // active_tab_ should be 5 (Download Dialog)
+    EXPECT_EQ(get_download_path(app), "moodle_root.zip"); // should suggest moodle_root.zip
+}
+
+

@@ -19,9 +19,12 @@
 #include <algorithm>
 #include <set>
 
+class TuiTest;
+
 namespace mstorage::tui {
 
 class TuiApplication {
+    friend class ::TuiTest;
 public:
     TuiApplication(core::SessionManager& session_manager, network::HttpClient& http_client, storage::HistoryManager& history_manager)
         : session_manager_(session_manager), http_client_(http_client), history_manager_(history_manager) {
@@ -74,6 +77,15 @@ public:
             
             std::vector<models::MoodleFile> all_files;
             
+            // Prepend the virtual root directory /
+            models::MoodleFile root_dir;
+            root_dir.filename = "/";
+            root_dir.filepath = "/";
+            root_dir.size_f = "DIR";
+            root_dir.size = 0;
+            root_dir.datemodified = 0;
+            all_files.push_back(root_dir);
+
             fetch_recursive_all(client, session->web_cookie, "/", all_files);
             auto fuse = client.get_usage(session->web_cookie);
             
@@ -237,6 +249,105 @@ private:
         std::filesystem::copy_file(theme_path, default_conf_path, std::filesystem::copy_options::overwrite_existing, ec);
     }
 
+    struct LocalFileNode {
+        std::filesystem::path path;
+        std::string name;
+        bool is_directory = false;
+        bool is_parent = false;
+    };
+
+    void add_local_directory_contents(const std::filesystem::path& dir, int depth) {
+        std::error_code err;
+        if (!std::filesystem::exists(dir, err)) return;
+        
+        std::vector<std::filesystem::directory_entry> entries;
+        for (const auto& entry : std::filesystem::directory_iterator(dir, err)) {
+            entries.push_back(entry);
+        }
+        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+            std::error_code e1, e2;
+            bool a_dir = a.is_directory(e1);
+            bool b_dir = b.is_directory(e2);
+            if (a_dir != b_dir) {
+                return a_dir > b_dir;
+            }
+            return a.path().filename() < b.path().filename();
+        });
+
+        for (const auto& entry : entries) {
+            std::error_code e;
+            LocalFileNode node;
+            node.path = entry.path();
+            node.name = entry.path().filename().string();
+            node.is_directory = entry.is_directory(e);
+            node.is_parent = false;
+
+            visible_local_nodes_.push_back(node);
+
+            std::string indent(depth * 4, ' ');
+            std::string select_indicator = selected_local_paths_.contains(node.path) ? "☑ " : "☐ ";
+            
+            std::string prefix = select_indicator;
+            if (node.is_directory) {
+                bool is_expanded = expanded_local_dirs_.contains(node.path);
+                prefix += (is_expanded ? "📁 ▼ " : "📁 ▶ ");
+                local_node_names_.push_back(indent + prefix + node.name);
+                
+                if (is_expanded) {
+                    add_local_directory_contents(node.path, depth + 1);
+                }
+            } else {
+                prefix += "📄 ";
+                local_node_names_.push_back(indent + prefix + node.name);
+            }
+        }
+    }
+
+    void update_local_nodes() {
+        visible_local_nodes_.clear();
+        local_node_names_.clear();
+
+        // 1. Add ".." parent link if current_local_dir_ has a parent
+        std::error_code ec;
+        if (current_local_dir_.has_parent_path() && current_local_dir_ != current_local_dir_.root_path()) {
+            LocalFileNode parent_node;
+            parent_node.path = current_local_dir_.parent_path();
+            parent_node.name = ".. (Go up)";
+            parent_node.is_directory = true;
+            parent_node.is_parent = true;
+            
+            visible_local_nodes_.push_back(parent_node);
+            local_node_names_.push_back("  📁 " + parent_node.name);
+        }
+
+        // 2. Add contents of current_local_dir_ (depth 0)
+        add_local_directory_contents(current_local_dir_, 0);
+
+        if (local_node_names_.empty()) {
+            local_node_names_.push_back("<Empty Directory>");
+        }
+        
+        if (selected_local_node_ >= static_cast<int>(visible_local_nodes_.size())) {
+            selected_local_node_ = static_cast<int>(visible_local_nodes_.size()) - 1;
+        }
+        if (selected_local_node_ < 0) {
+            selected_local_node_ = 0;
+        }
+    }
+
+    void go_up_local_dir() {
+        std::error_code ec;
+        if (current_local_dir_.has_parent_path()) {
+            auto parent = current_local_dir_.parent_path();
+            if (std::filesystem::exists(parent, ec)) {
+                current_local_dir_ = parent;
+                expanded_local_dirs_.clear();
+                selected_local_node_ = 0;
+                update_local_nodes();
+            }
+        }
+    }
+
     void open_settings() {
         settings_selected_ = 0;
         settings_status_ = "";
@@ -339,6 +450,10 @@ private:
                 depth--;
             }
             if (depth < 0) depth = 0;
+
+            if (!(file.filepath == "/" && file.filename == "/")) {
+                depth++;
+            }
 
             std::string indent(depth * 4, ' ');
             
@@ -527,20 +642,29 @@ private:
     }
 
     void perform_upload() {
-        if (upload_path_.empty()) {
-            upload_status_ = "Please enter a local file/folder path.";
-            return;
+        std::vector<std::filesystem::path> paths_to_upload;
+        if (!selected_local_paths_.empty()) {
+            for (const auto& p : selected_local_paths_) {
+                paths_to_upload.push_back(p);
+            }
+        } else {
+            if (selected_local_node_ >= 0 && selected_local_node_ < static_cast<int>(visible_local_nodes_.size())) {
+                const auto& node = visible_local_nodes_[selected_local_node_];
+                if (!node.is_parent) {
+                    paths_to_upload.push_back(node.path);
+                }
+            }
         }
 
-        if (!std::filesystem::exists(upload_path_)) {
-            upload_status_ = "Local path does not exist.";
+        if (paths_to_upload.empty()) {
+            upload_status_ = "Please select at least one local file/folder.";
             return;
         }
 
         upload_status_ = "Uploading...";
 
         if (action_thread_.joinable()) action_thread_.join();
-        action_thread_ = std::thread([this]() {
+        action_thread_ = std::thread([this, paths_to_upload]() {
             auto client = get_client();
             if (!client) {
                 upload_status_ = "Error: client not initialized.";
@@ -556,15 +680,8 @@ private:
                 return;
             }
 
-            std::string parent_path = "/";
-            if (!files_.empty() && selected_ < static_cast<int>(files_.size())) {
-                const auto& f = files_[selected_];
-                if (f.size_f == "DIR") {
-                    parent_path = f.filepath;
-                } else {
-                    parent_path = f.filepath;
-                }
-            }
+            // Normalize destination path
+            std::string parent_path = moodle_upload_path_;
             if (parent_path.empty() || parent_path.front() != '/') parent_path = "/" + parent_path;
             if (parent_path.back() != '/') parent_path += "/";
 
@@ -596,23 +713,24 @@ private:
                     return {};
                 };
 
-            std::expected<void, std::error_code> res;
-            if (std::filesystem::is_directory(upload_path_)) {
-                if (upload_recursive_) {
-                    res = upload_recursive(upload_path_, parent_path);
+            for (const auto& local_path : paths_to_upload) {
+                std::expected<void, std::error_code> res;
+                if (std::filesystem::is_directory(local_path)) {
+                    if (upload_recursive_) {
+                        res = upload_recursive(local_path, parent_path);
+                    } else {
+                        // Skip folder upload if recursive flag is false
+                        continue;
+                    }
                 } else {
-                    upload_status_ = "Skipping folder upload. Check 'Recursive' checkbox.";
+                    res = upload_single_file(local_path.string(), parent_path);
+                }
+
+                if (!res) {
+                    upload_status_ = "Upload failed for '" + local_path.filename().string() + "': " + res.error().message();
                     screen_->PostEvent(ftxui::Event::Custom);
                     return;
                 }
-            } else {
-                res = upload_single_file(upload_path_, parent_path);
-            }
-
-            if (!res) {
-                upload_status_ = "Upload failed: " + res.error().message();
-                screen_->PostEvent(ftxui::Event::Custom);
-                return;
             }
 
             auto commit_res = client->commit_draft(*draft_info, session->web_cookie);
@@ -623,7 +741,7 @@ private:
             }
 
             upload_status_ = "";
-            upload_path_ = "";
+            selected_local_paths_.clear();
             active_tab_ = 0; // Go back to browser
             trigger_refresh();
             screen_->PostEvent(ftxui::Event::Custom);
@@ -885,16 +1003,22 @@ public:
         });
 
         // --- Upload Dialog Components ---
-        input_upload_ = ftxui::Input(&upload_path_, "Local file/folder path");
+        current_local_dir_ = std::filesystem::current_path();
+        update_local_nodes();
+
+        input_moodle_path_ = ftxui::Input(&moodle_upload_path_, "Moodle upload path");
+        local_files_menu_ = ftxui::Menu(&local_node_names_, &selected_local_node_, make_menu_option());
         chk_upload_recursive_ = ftxui::Checkbox("Recursive (for directories)", &upload_recursive_);
         btn_upload_ok_ = ftxui::Button("Upload", [this]() {
             perform_upload();
         }, make_button_option(true));
         btn_upload_cancel_ = ftxui::Button("Cancel", [this]() {
+            selected_local_paths_.clear();
             close_dialog();
         }, make_button_option(false));
         upload_container_ = ftxui::Container::Vertical({
-            input_upload_,
+            input_moodle_path_,
+            local_files_menu_,
             chk_upload_recursive_,
             btn_upload_ok_,
             btn_upload_cancel_
@@ -1141,7 +1265,7 @@ public:
                         ftxui::text("Path: " + f.filepath) | ftxui::color(theme_.inactive_fg),
                         ftxui::separator() | ftxui::color(theme_.div_line),
                         ftxui::text("Size: " + f.size_f) | ftxui::color(theme_.main_fg),
-                        ftxui::text("Modified: " + std::string(ctime(&f.datemodified))) | ftxui::color(theme_.inactive_fg),
+                        ftxui::text("Modified: " + (f.datemodified == 0 ? "-" : std::string(ctime(&f.datemodified)))) | ftxui::color(theme_.inactive_fg),
                         ftxui::filler(),
                         ftxui::text(""),
                         ftxui::vbox({
@@ -1200,8 +1324,13 @@ public:
             if (active_tab_ == 3) {
                 auto dialog = ftxui::window(ftxui::text(" Upload File/Folder ") | ftxui::bold | ftxui::color(theme_.title),
                     ftxui::vbox({
-                        ftxui::text("Local Path:"),
-                        input_upload_->Render() | ftxui::border,
+                        ftxui::hbox({
+                            ftxui::text("Moodle Destination: ") | ftxui::color(theme_.main_fg) | ftxui::vcenter,
+                            input_moodle_path_->Render() | ftxui::border | ftxui::flex
+                        }),
+                        ftxui::separator() | ftxui::color(theme_.div_line),
+                        ftxui::text(std::format("Local Files (Current: {})", current_local_dir_.string())) | ftxui::bold | ftxui::color(theme_.title),
+                        local_files_menu_->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 12) | ftxui::border,
                         chk_upload_recursive_->Render(),
                         ftxui::separator() | ftxui::color(theme_.div_line),
                         ftxui::hbox({
@@ -1211,7 +1340,7 @@ public:
                         }) | ftxui::center,
                         ftxui::text(upload_status_) | ftxui::color(theme_.hi_fg) | ftxui::center
                     })
-                ) | ftxui::color(theme_.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 50) | ftxui::center;
+                ) | ftxui::color(theme_.box_border) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 75) | ftxui::center;
                 return ftxui::dbox({ main_layout, ftxui::clear_under(dialog) });
             }
 
@@ -1329,6 +1458,69 @@ public:
                 return false;
             }
 
+            if (active_tab_ == 3) {
+                if (event == ftxui::Event::Escape) {
+                    selected_local_paths_.clear();
+                    close_dialog();
+                    return true;
+                }
+                
+                if (upload_container_->ActiveChild() == local_files_menu_) {
+                    if (event == ftxui::Event::Character(' ')) {
+                        if (selected_local_node_ >= 0 && selected_local_node_ < static_cast<int>(visible_local_nodes_.size())) {
+                            const auto& node = visible_local_nodes_[selected_local_node_];
+                            if (!node.is_parent) {
+                                if (selected_local_paths_.contains(node.path)) {
+                                    selected_local_paths_.erase(node.path);
+                                } else {
+                                    selected_local_paths_.insert(node.path);
+                                }
+                                update_local_nodes();
+                            }
+                        }
+                        return true;
+                    }
+                    if (event == ftxui::Event::ArrowRight) {
+                        if (selected_local_node_ >= 0 && selected_local_node_ < static_cast<int>(visible_local_nodes_.size())) {
+                            const auto& node = visible_local_nodes_[selected_local_node_];
+                            if (node.is_parent) {
+                                go_up_local_dir();
+                            } else if (node.is_directory) {
+                                expanded_local_dirs_.insert(node.path);
+                                update_local_nodes();
+                            }
+                        }
+                        return true;
+                    }
+                    if (event == ftxui::Event::ArrowLeft) {
+                        if (selected_local_node_ >= 0 && selected_local_node_ < static_cast<int>(visible_local_nodes_.size())) {
+                            const auto& node = visible_local_nodes_[selected_local_node_];
+                            if (!node.is_parent && node.is_directory) {
+                                expanded_local_dirs_.erase(node.path);
+                                update_local_nodes();
+                            }
+                        }
+                        return true;
+                    }
+                    if (event == ftxui::Event::Return) {
+                        if (selected_local_node_ >= 0 && selected_local_node_ < static_cast<int>(visible_local_nodes_.size())) {
+                            const auto& node = visible_local_nodes_[selected_local_node_];
+                            if (node.is_parent) {
+                                go_up_local_dir();
+                            } else if (node.is_directory) {
+                                if (expanded_local_dirs_.contains(node.path)) {
+                                    expanded_local_dirs_.erase(node.path);
+                                } else {
+                                    expanded_local_dirs_.insert(node.path);
+                                }
+                                update_local_nodes();
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+
             if (active_tab_ != 0) {
                 if (event == ftxui::Event::Escape) {
                     close_dialog();
@@ -1347,14 +1539,36 @@ public:
                 return true;
             }
             if (event == ftxui::Event::Character('u')) {
-                upload_path_ = "";
-                upload_recursive_ = false;
                 upload_status_ = "";
                 active_tab_ = 3; // Upload Dialog
+                
+                // Initialize Moodle upload path
+                std::string parent_path = "/";
+                if (!files_.empty() && selected_ < static_cast<int>(files_.size())) {
+                    const auto& f = files_[selected_];
+                    parent_path = f.filepath;
+                }
+                if (parent_path.empty() || parent_path.front() != '/') parent_path = "/" + parent_path;
+                if (parent_path.back() != '/') parent_path += "/";
+                moodle_upload_path_ = parent_path;
+
+                // Initialize local browser
+                current_local_dir_ = std::filesystem::current_path();
+                expanded_local_dirs_.clear();
+                selected_local_paths_.clear();
+                selected_local_node_ = 0;
+                update_local_nodes();
+
                 return true;
             }
             if (event == ftxui::Event::Character('d')) {
                 if (!selected_paths_.empty() || (!files_.empty() && selected_ < static_cast<int>(files_.size()))) {
+                    if (selected_paths_.empty()) {
+                        const auto& file = files_[selected_];
+                        if (file.filepath == "/" && file.filename == "/") {
+                            return true;
+                        }
+                    }
                     delete_status_ = "";
                     active_tab_ = 6; // Delete Dialog
                 }
@@ -1382,6 +1596,9 @@ public:
             if (event == ftxui::Event::Character(' ')) {
                 if (!files_.empty() && selected_ < static_cast<int>(files_.size())) {
                     const auto& file = files_[selected_];
+                    if (file.filepath == "/" && file.filename == "/") {
+                        return true;
+                    }
                     std::string item_key = file.filepath + "/" + file.filename;
                     if (selected_paths_.contains(item_key)) {
                         selected_paths_.erase(item_key);
@@ -1418,7 +1635,9 @@ public:
                 }
                 if (!files_.empty() && selected_ < static_cast<int>(files_.size())) {
                     const auto& file = files_[selected_];
-                    if (file.size_f == "DIR") {
+                    if (file.filepath == "/" && file.filename == "/") {
+                        download_path_ = "moodle_root.zip";
+                    } else if (file.size_f == "DIR") {
                         download_path_ = get_folder_name(file.filepath) + ".zip";
                     } else {
                         download_path_ = file.filename;
@@ -1473,8 +1692,15 @@ private:
 
     // Upload inputs
     std::string upload_path_ = "";
-    bool upload_recursive_ = false;
+    bool upload_recursive_ = true;
     std::string upload_status_ = "";
+    std::string moodle_upload_path_ = "/";
+    std::filesystem::path current_local_dir_;
+    std::vector<LocalFileNode> visible_local_nodes_;
+    std::vector<std::string> local_node_names_ = {"Loading..."};
+    int selected_local_node_ = 0;
+    std::set<std::filesystem::path> expanded_local_dirs_;
+    std::set<std::filesystem::path> selected_local_paths_;
 
     // Download inputs
     std::string download_path_ = "";
@@ -1517,6 +1743,8 @@ private:
     ftxui::Component mkdir_container_;
 
     ftxui::Component input_upload_;
+    ftxui::Component input_moodle_path_;
+    ftxui::Component local_files_menu_;
     ftxui::Component chk_upload_recursive_;
     ftxui::Component btn_upload_ok_;
     ftxui::Component btn_upload_cancel_;

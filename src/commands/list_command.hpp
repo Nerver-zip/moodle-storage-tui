@@ -20,7 +20,12 @@ public:
         std::cout << "Filepath                                                    Size           Type\n";
         std::cout << std::string(90, '-') << std::endl;
 
-        return list_recursive("/", 0);
+        // Print root directory visually
+        print_cell("📁 /", 62);
+        print_cell("-", 15);
+        std::cout << "DIR\n";
+
+        return list_recursive("/", 1);
     }
 
 private:
