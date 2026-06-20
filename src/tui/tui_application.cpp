@@ -837,11 +837,67 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
                     if (file.filepath == "/" && file.filename == "/") {
                         return true;
                     }
+                    
                     std::string item_key = file.filepath + "/" + file.filename;
+                    bool is_dir = (file.size_f == "DIR");
+
+                    std::function<void(const std::string&, const std::string&, bool)> select_children = 
+                        [&](const std::string& parent_path, const std::string& parent_name, bool select) {
+                            for (const auto& f : context_.all_files) {
+                                if (f.filepath == parent_path && f.filename == parent_name) {
+                                    continue;
+                                }
+                                if (f.filepath.starts_with(parent_path)) {
+                                    std::string child_key = f.filepath + "/" + f.filename;
+                                    if (select) {
+                                        context_.selected_paths.insert(child_key);
+                                    } else {
+                                        context_.selected_paths.erase(child_key);
+                                    }
+                                }
+                            }
+                        };
+
+                    std::function<void(const std::string&, bool)> deselect_parents = 
+                        [&](const std::string& filepath, bool is_d) {
+                            std::string parent_filepath;
+                            if (!is_d) {
+                                parent_filepath = filepath;
+                            } else {
+                                std::string clean_path = filepath;
+                                if (clean_path.back() == '/') clean_path.pop_back();
+                                auto pos = clean_path.find_last_of('/');
+                                if (pos != std::string::npos) {
+                                    parent_filepath = clean_path.substr(0, pos + 1);
+                                }
+                            }
+
+                            if (parent_filepath.empty() || parent_filepath == "/") return;
+
+                            std::string parent_filename = context_.get_folder_name(parent_filepath);
+                            for (const auto& f : context_.all_files) {
+                                if (f.size_f == "DIR" && f.filepath == parent_filepath && f.filename == parent_filename) {
+                                    std::string parent_key = f.filepath + "/" + f.filename;
+                                    if (context_.selected_paths.contains(parent_key)) {
+                                        context_.selected_paths.erase(parent_key);
+                                        deselect_parents(f.filepath, true);
+                                    }
+                                    break;
+                                }
+                            }
+                        };
+
                     if (context_.selected_paths.contains(item_key)) {
                         context_.selected_paths.erase(item_key);
+                        if (is_dir) {
+                            select_children(file.filepath, file.filename, false);
+                        }
+                        deselect_parents(file.filepath, is_dir);
                     } else {
                         context_.selected_paths.insert(item_key);
+                        if (is_dir) {
+                            select_children(file.filepath, file.filename, true);
+                        }
                     }
                     return true;
                 }

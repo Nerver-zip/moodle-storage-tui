@@ -460,4 +460,101 @@ TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {
     EXPECT_EQ(get_download_path(app), "moodle_root"); // should suggest moodle_root without .zip
 }
 
+TEST_F(TuiTest, HierarchicalDirectorySelectionTest) {
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+
+    mstorage::models::MoodleFile root;
+    root.filename = "/";
+    root.filepath = "/";
+    root.size_f = "DIR";
+
+    mstorage::models::MoodleFile docs;
+    docs.filename = "docs";
+    docs.filepath = "/docs/";
+    docs.size_f = "DIR";
+
+    mstorage::models::MoodleFile sub;
+    sub.filename = "sub";
+    sub.filepath = "/docs/sub/";
+    sub.size_f = "DIR";
+
+    mstorage::models::MoodleFile file1;
+    file1.filename = "file1.txt";
+    file1.filepath = "/docs/";
+    file1.size_f = "10B";
+
+    mstorage::models::MoodleFile file2;
+    file2.filename = "file2.txt";
+    file2.filepath = "/docs/sub/";
+    file2.size_f = "10B";
+
+    std::vector<mstorage::models::MoodleFile> test_files = {root, docs, sub, file1, file2};
+    get_all_files(app) = test_files;
+    get_loading(app) = false;
+    
+    get_context(app).collapsed_folders.clear(); // expand all
+    update_visible_files(app);
+
+    auto component = app.get_root_component();
+
+    ASSERT_GE(get_files(app).size(), 5);
+
+    int idx_docs = -1, idx_sub = -1, idx_file1 = -1, idx_file2 = -1;
+    for (size_t i = 0; i < get_files(app).size(); ++i) {
+        const auto& f = get_files(app)[i];
+        if (f.filename == "docs") idx_docs = i;
+        else if (f.filename == "sub") idx_sub = i;
+        else if (f.filename == "file1.txt") idx_file1 = i;
+        else if (f.filename == "file2.txt") idx_file2 = i;
+    }
+
+    ASSERT_NE(idx_docs, -1);
+    ASSERT_NE(idx_sub, -1);
+    ASSERT_NE(idx_file1, -1);
+    ASSERT_NE(idx_file2, -1);
+
+    // 1. Select the "docs" directory
+    get_selected(app) = idx_docs;
+    bool space_docs = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(space_docs);
+
+    std::string key_docs = "/docs//docs";
+    std::string key_sub = "/docs/sub//sub";
+    std::string key_file1 = "/docs//file1.txt";
+    std::string key_file2 = "/docs/sub//file2.txt";
+
+    // Verify all children are selected
+    EXPECT_TRUE(get_selected_paths(app).contains(key_docs));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_sub));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_file1));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_file2));
+
+    // 2. Deselect the grandchild "file2.txt"
+    get_selected(app) = idx_file2;
+    bool space_file2 = component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(space_file2);
+
+    // Verify parent "sub" and grandparent "docs" are cascading deselected, but sibling "file1.txt" remains
+    EXPECT_FALSE(get_selected_paths(app).contains(key_file2));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_sub));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_docs));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_file1));
+
+    // 3. Select the "docs" directory again to select all children again
+    get_selected(app) = idx_docs;
+    component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_docs));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_sub));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_file1));
+    EXPECT_TRUE(get_selected_paths(app).contains(key_file2));
+
+    // 4. Deselect the "docs" directory
+    component->OnEvent(ftxui::Event::Character(' '));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_docs));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_sub));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_file1));
+    EXPECT_FALSE(get_selected_paths(app).contains(key_file2));
+}
+
 
