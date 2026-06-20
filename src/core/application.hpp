@@ -15,6 +15,8 @@
 #include "commands/mkdir_command.hpp"
 #include "commands/logout_command.hpp"
 #include "tui/tui_application.hpp"
+#include "core/version.hpp"
+#include "core/updater.hpp"
 #include <iostream>
 #include <memory>
 
@@ -29,6 +31,10 @@ public:
 
     void setup_commands() {
         app_.require_subcommand(0, 1);
+
+        // Global flags
+        app_.add_flag("-v,--version", show_version_, "Show version information");
+        app_.add_flag("--update", perform_update_, "Check for updates and auto-update");
 
         // Login command
         auto* login = app_.add_subcommand("login", "Login to Moodle");
@@ -72,6 +78,19 @@ public:
             app_.parse(argc, argv);
         } catch (const CLI::ParseError& e) {
             return app_.exit(e);
+        }
+
+        if (show_version_) {
+            std::cout << "mstorage version " << mstorage::core::VERSION << "\n";
+            return 0;
+        }
+
+        if (perform_update_) {
+            auto res = mstorage::core::Updater::perform_update(http_client_, mstorage::core::VERSION);
+            if (!res) {
+                return 1;
+            }
+            return 0;
         }
 
         if (app_.get_subcommands().empty()) {
@@ -164,6 +183,8 @@ private:
     std::string delete_remote_path_;
     bool history_clear_ = false;
     std::string mkdir_foldername_;
+    bool show_version_ = false;
+    bool perform_update_ = false;
 };
 
 } // namespace mstorage::core

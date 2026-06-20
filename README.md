@@ -32,7 +32,7 @@ O **Moodle Storage** é uma ferramenta de linha de comando (CLI) e interface de 
 O **Moodle Storage** é distribuído como um binário pré-compilado para Linux x86_64.
 
 ### 1. Baixar o Binário
-Acesse a página de **[Releases](https://github.com/Nerver-zip/moodle-storage/releases)** e baixe a versão mais recente (`.tar.gz`).
+Acesse a página de **[Releases](https://github.com/Nerver-zip/moodle-storage-tui/releases)** e baixe a versão mais recente (`.tar.gz`).
 
 ### 2. Instalar no Sistema
 Extraia o binário e mova-o para o seu PATH:

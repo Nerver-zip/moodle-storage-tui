@@ -4,6 +4,7 @@ add_executable(unit_tests
     test_history_manager.cpp
     test_commands.cpp
     test_tui.cpp
+    test_updater.cpp
 )
 
 target_link_libraries(unit_tests
