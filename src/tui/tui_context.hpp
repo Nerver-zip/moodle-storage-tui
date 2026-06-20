@@ -73,7 +73,6 @@ public:
 
     // Upload inputs
     std::string upload_path = "";
-    bool upload_recursive = true;
     std::string upload_status = "";
     std::string moodle_upload_path = "/";
     std::filesystem::path current_local_dir;
@@ -86,6 +85,7 @@ public:
     // Download inputs
     std::string download_path = "";
     std::string download_status = "";
+    bool download_use_zip = true;
 
     // Delete status
     std::string delete_status = "";

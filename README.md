@@ -22,7 +22,7 @@ O **Moodle Storage** é uma ferramenta de linha de comando (CLI) e interface de 
 * 🖥️ **TUI e CLI:** Uma interface gráfica completa no terminal (TUI) para navegação interativa, e uma CLI robusta para scripts e automação.
 * 🔐 **SSO Automatizado & Keyring:** Suporte a login automático em Provedores de Identidade (como o Shibboleth da UFPel) sem abrir o navegador, salvando credenciais e tokens em segurança no **Gnome Keyring** (via `libsecret`).
 * 🚀 **Arquitetura Híbrida (REST + AJAX):** Combina a velocidade e estabilidade da API REST Oficial do Moodle (Tokens) com o poder cirúrgico da API AJAX legada para operações exclusivas de diretórios.
-* 📂 **Gerenciamento Hierárquico:** Criação de pastas (`mkdir -p`), upload recursivo (`-r`), deleção limpa de árvores de diretórios e download em lote (compactação ZIP via servidor).
+* 📂 **Gerenciamento Hierárquico:** Criação de pastas (`mkdir -p`), upload recursivo automático de diretórios, deleção limpa de árvores de diretórios e download em lote (com ou sem compactação ZIP via servidor).
 * 📊 **Observabilidade:** Acompanhamento de cota (Usage) e banco de dados SQLite local com histórico completo de uploads.
 
 ---
@@ -113,7 +113,7 @@ mstorage mkdir MinhaNovaPasta
 
 ### 4. Upload de Arquivos
 
-Você pode enviar arquivos individuais ou espelhar pastas inteiras recursivamente (`-r`).
+Você pode enviar arquivos individuais ou pastas inteiras de forma automática e recursiva.
 
 ```bash
 # Upload de arquivos únicos para a raiz
@@ -122,29 +122,32 @@ mstorage upload documento.pdf foto.png
 # Upload para uma subpasta específica
 mstorage upload documento.pdf --path /MinhaNovaPasta/
 
-# Upload recursivo de um diretório local
-mstorage upload -r /home/user/meus_arquivos --path /Backup/
+# Upload de um diretório local (recursivo por padrão)
+mstorage upload /home/user/meus_arquivos --path /Backup/
 ```
 
 ### 5. Download e Compressão
 
-A ferramenta permite o download arquivo-a-arquivo ou delega a compressão ZIP para o servidor Moodle (extremamente rápido).
+A ferramenta permite o download recursivo individual de arquivos ou delega a compressão ZIP para o servidor Moodle (comportamento padrão, use `--no-zip` se preferir baixar os arquivos individualmente mantendo a estrutura).
 
 ```bash
 # Baixa um arquivo
 mstorage download documento.pdf
 
-# Baixa uma pasta inteira (O Moodle criará um ZIP nativo no backend)
-mstorage download -r MinhaNovaPasta
+# Baixa uma pasta inteira (com compactação ZIP no servidor)
+mstorage download MinhaNovaPasta
+
+# Baixa uma pasta inteira individualmente, arquivo por arquivo (sem ZIP)
+mstorage download MinhaNovaPasta --no-zip
 ```
 
 ### 6. Deleção de Arquivos
 
-Apaga arquivos ou diretórios de forma limpa.
+Apaga arquivos ou diretórios de forma automática (detecta automaticamente pastas e as exclui recursivamente).
 
 ```bash
 mstorage delete documento.pdf
-mstorage delete MinhaNovaPasta -r
+mstorage delete MinhaNovaPasta
 ```
 
 *A deleção de diretórios aciona um fallback automático para a API AJAX caso a API REST se recuse a apagar o registro físico da pasta.*

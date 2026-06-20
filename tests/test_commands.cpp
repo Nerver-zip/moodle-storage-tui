@@ -63,7 +63,7 @@ TEST_F(CommandTest, UploadCommandOrchestration) {
     std::string test_file = (temp_dir / "test.txt").string();
     { std::ofstream f(test_file); f << "content"; }
 
-    UploadCommand cmd(client, sm, hm, std::vector<std::string>{test_file}, "/", false);
+    UploadCommand cmd(client, sm, hm, std::vector<std::string>{test_file}, "/");
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }
@@ -108,9 +108,13 @@ TEST_F(CommandTest, DeleteCommandOrchestration) {
     MoodleClient client{mock_http, "https://moodle.test"};
     client.set_web_cookie("cookie");
 
-    // Delete flow uses AJAX, so it calls get for draft info, then post for deleteselected, then post_raw for commit
+    // Delete flow uses AJAX, so it calls get for draft info, then post for list_files, then post for deleteselected, then post_raw for commit
     EXPECT_CALL(mock_http, get(::testing::Eq("https://moodle.test/user/files.php"), _))
         .WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="123">)")));
+    
+    EXPECT_CALL(mock_http, post(::testing::Eq("https://moodle.test/webservice/rest/server.php"), _, _))
+        .WillOnce(Return(std::string(R"({"userid":10330,"userpictureurl":"https://m.com/pluginfile.php/23694/user/icon"})")))
+        .WillOnce(Return(std::string(R"({"files":[]})")));
     
     EXPECT_CALL(mock_http, post(::testing::StartsWith("https://moodle.test/repository/draftfiles_ajax.php"), _, _))
         .WillOnce(Return(std::string("[]")));
@@ -118,7 +122,7 @@ TEST_F(CommandTest, DeleteCommandOrchestration) {
     EXPECT_CALL(mock_http, post_raw(_, _, _, _))
         .WillOnce(Return(std::string("{}")));
 
-    mstorage::commands::DeleteCommand cmd(client, sm, std::vector<std::string>{"to_delete.txt"}, "/", false);
+    mstorage::commands::DeleteCommand cmd(client, sm, std::vector<std::string>{"to_delete.txt"}, "/");
     auto result = cmd.execute();
     EXPECT_TRUE(result.has_value());
 }

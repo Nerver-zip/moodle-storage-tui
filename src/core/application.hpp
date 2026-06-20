@@ -41,7 +41,6 @@ public:
         auto* upload = app_.add_subcommand("upload", "Upload file(s) or folder(s) to Moodle");
         upload->add_option("files", upload_file_paths_, "Paths to the local files or folders")->required();
         upload->add_option("-p,--path", upload_remote_path_, "Remote target path in Moodle")->default_val("/");
-        upload->add_flag("-r,--recursive", upload_recursive_, "Upload folder contents recursively");
 
         // List command
         app_.add_subcommand("list", "List files in Moodle private area");
@@ -49,13 +48,12 @@ public:
         // Download command
         auto* download = app_.add_subcommand("download", "Download file(s) from Moodle");
         download->add_option("filenames", download_filenames_, "Names of the files to download")->required();
-        download->add_flag("-r,--recursive", download_recursive_, "Download folders recursively");
+        download->add_flag("--no-zip", download_no_zip_, "Do not compress folder server-side, download individual files");
 
         // Delete command
         auto* del = app_.add_subcommand("delete", "Delete file(s) or folder(s) from Moodle");
         del->add_option("targets", delete_target_names_, "Names of files or folders to delete")->required();
         del->add_option("-p,--path", delete_remote_path_, "Remote path context")->default_val("/");
-        del->add_flag("-r,--recursive", delete_recursive_, "Delete folders recursively");
 
         // History command
         auto* history = app_.add_subcommand("history", "Show upload history");
@@ -100,7 +98,7 @@ public:
         moodle_client.set_web_cookie(session->web_cookie);
 
         if (app_.got_subcommand("upload")) {
-            mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_paths_, upload_remote_path_, upload_recursive_);
+            mstorage::commands::UploadCommand cmd(moodle_client, session_manager_, history_manager_, upload_file_paths_, upload_remote_path_);
             return handle_result(cmd.execute(), "Upload");
         }
 
@@ -110,12 +108,12 @@ public:
         }
 
         if (app_.got_subcommand("download")) {
-            mstorage::commands::DownloadCommand cmd(moodle_client, session_manager_, download_filenames_, download_recursive_);
+            mstorage::commands::DownloadCommand cmd(moodle_client, session_manager_, download_filenames_, !download_no_zip_);
             return handle_result(cmd.execute(), "Download");
         }
 
         if (app_.got_subcommand("delete")) {
-            mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_target_names_, delete_remote_path_, delete_recursive_);
+            mstorage::commands::DeleteCommand cmd(moodle_client, session_manager_, delete_target_names_, delete_remote_path_);
             return handle_result(cmd.execute(), "Delete");
         }
 
@@ -160,12 +158,10 @@ private:
     std::string login_url_;
     std::vector<std::string> upload_file_paths_;
     std::string upload_remote_path_;
-    bool upload_recursive_ = false;
     std::vector<std::string> download_filenames_;
-    bool download_recursive_ = false;
+    bool download_no_zip_ = false;
     std::vector<std::string> delete_target_names_;
     std::string delete_remote_path_;
-    bool delete_recursive_ = false;
     bool history_clear_ = false;
     std::string mkdir_foldername_;
 };

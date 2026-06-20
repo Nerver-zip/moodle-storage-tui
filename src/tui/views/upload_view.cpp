@@ -7,7 +7,6 @@ namespace mstorage::tui::views {
 ftxui::Component CreateUploadView(TuiContext& ctx) {
     auto input_moodle_path = ftxui::Input(&ctx.moodle_upload_path, "Moodle upload path");
     auto local_files_menu = ftxui::Menu(&ctx.local_node_names, &ctx.selected_local_node, ctx.make_menu_option());
-    auto chk_upload_recursive = ftxui::Checkbox("Recursive (for directories)", &ctx.upload_recursive);
     
     auto btn_upload_ok = ftxui::Button("Upload", [&ctx]() {
         if (ctx.perform_upload_cb) ctx.perform_upload_cb();
@@ -16,7 +15,6 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
     auto upload_container = ftxui::Container::Vertical({
         input_moodle_path,
         local_files_menu,
-        chk_upload_recursive,
         btn_upload_ok
     });
 
@@ -24,7 +22,7 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
     ctx.upload_container = upload_container;
     ctx.local_files_menu = local_files_menu;
 
-    return ftxui::Renderer(upload_container, [input_moodle_path, local_files_menu, chk_upload_recursive, btn_upload_ok, &ctx]() {
+    return ftxui::Renderer(upload_container, [input_moodle_path, local_files_menu, btn_upload_ok, &ctx]() {
         auto dialog = ftxui::window(ftxui::text(" Upload File/Folder ") | ftxui::bold | ftxui::color(ctx.theme.title),
             ftxui::vbox({
                 ftxui::hbox({
@@ -34,7 +32,6 @@ ftxui::Component CreateUploadView(TuiContext& ctx) {
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 ftxui::text(std::format("Local Files (Current: {})", ctx.current_local_dir.string())) | ftxui::bold | ftxui::color(ctx.theme.title),
                 local_files_menu->Render() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 12) | ftxui::border,
-                chk_upload_recursive->Render(),
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 btn_upload_ok->Render() | ftxui::center,
                 ftxui::text(ctx.upload_status) | ftxui::color(ctx.theme.hi_fg) | ftxui::center,

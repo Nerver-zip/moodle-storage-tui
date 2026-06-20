@@ -377,15 +377,8 @@ TEST_F(TuiTest, UploadDialogTabNavigation) {
     tab_pressed = component->OnEvent(ftxui::Event::Tab);
     EXPECT_TRUE(tab_pressed);
     active = ctx.upload_container->ActiveChild();
-    // Index 2 should be chk_upload_recursive
+    // Index 2 should be btn_upload_ok
     EXPECT_EQ(ctx.upload_container->ChildAt(2), active);
-
-    // Press Tab again
-    tab_pressed = component->OnEvent(ftxui::Event::Tab);
-    EXPECT_TRUE(tab_pressed);
-    active = ctx.upload_container->ActiveChild();
-    // Index 3 should be btn_upload_ok
-    EXPECT_EQ(ctx.upload_container->ChildAt(3), active);
 
     // Press Tab again (loops back to index 0)
     tab_pressed = component->OnEvent(ftxui::Event::Tab);
@@ -393,11 +386,11 @@ TEST_F(TuiTest, UploadDialogTabNavigation) {
     active = ctx.upload_container->ActiveChild();
     EXPECT_EQ(ctx.upload_container->ChildAt(0), active);
 
-    // Press Shift-Tab (TabReverse) (goes back to index 3)
+    // Press Shift-Tab (TabReverse) (goes back to index 2)
     bool shift_tab_pressed = component->OnEvent(ftxui::Event::TabReverse);
     EXPECT_TRUE(shift_tab_pressed);
     active = ctx.upload_container->ActiveChild();
-    EXPECT_EQ(ctx.upload_container->ChildAt(3), active);
+    EXPECT_EQ(ctx.upload_container->ChildAt(2), active);
 }
 
 TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {
@@ -464,7 +457,7 @@ TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {
     bool return_root = component->OnEvent(ftxui::Event::Return);
     EXPECT_TRUE(return_root);
     EXPECT_EQ(get_active_tab(app), 5); // active_tab_ should be 5 (Download Dialog)
-    EXPECT_EQ(get_download_path(app), "moodle_root.zip"); // should suggest moodle_root.zip
+    EXPECT_EQ(get_download_path(app), "moodle_root"); // should suggest moodle_root without .zip
 }
 
 

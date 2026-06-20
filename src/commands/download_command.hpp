@@ -14,9 +14,9 @@ namespace mstorage::commands {
 class DownloadCommand : public Command {
 public:
     DownloadCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, 
-                    std::vector<std::string> filenames, bool recursive)
+                    std::vector<std::string> filenames, bool use_zip = true)
         : moodle_client_(moodle_client), session_manager_(session_manager), 
-          filenames_(std::move(filenames)), recursive_(recursive) {}
+          filenames_(std::move(filenames)), use_zip_(use_zip) {}
 
     std::expected<void, std::error_code> execute() override {
         auto draft_info = core::ensure_web_session(moodle_client_, session_manager_);
@@ -33,8 +33,15 @@ public:
         if (!files) return std::unexpected(files.error());
 
         for (const auto& target_name : filenames_) {
+            std::string clean_target = target_name;
+            if (clean_target.size() > 4 && clean_target.substr(clean_target.size() - 4) == ".zip") {
+                clean_target = clean_target.substr(0, clean_target.size() - 4);
+            }
+
             auto it = std::find_if(files->begin(), files->end(), [&](const models::MoodleFile& f) {
-                return f.filename == target_name || (f.filename == "." && get_folder_name(f.filepath) == target_name);
+                return f.filename == target_name || 
+                       (f.filename == "." && get_folder_name(f.filepath) == target_name) ||
+                       (f.filename == "." && get_folder_name(f.filepath) == clean_target);
             });
 
             if (it == files->end()) {
@@ -44,28 +51,26 @@ public:
 
             if (it->filename == ".") {
                 // Folder
-                if (!recursive_) {
-                    std::cerr << "Error: '" << target_name << "' is a directory. Use -r to download recursively.\n";
-                    continue;
-                }
-                
-                std::cout << "Attempting native ZIP compression for '" << target_name << "'...\n";
-                if (draft_info) {
+                if (use_zip_ && draft_info) {
+                    std::cout << "Attempting native ZIP compression for '" << target_name << "'...\n";
                     auto zip_url = moodle_client_.zip_folder(it->filepath, *draft_info, session->web_cookie);
                     if (zip_url) {
-                        std::string output_zip = target_name + ".zip";
+                        std::string output_zip = target_name;
+                        if (output_zip.size() < 4 || output_zip.substr(output_zip.size() - 4) != ".zip") {
+                            output_zip += ".zip";
+                        }
                         std::cout << "Downloading ZIP: " << output_zip << "...\n";
                         (void)moodle_client_.download_file(*zip_url, output_zip, session->web_cookie);
                         continue;
                     }
+                    std::cout << "Falling back to individual file downloads...\n";
                 }
                 
-                std::cout << "Falling back to individual file downloads...\n";
                 download_recursive(it->filepath, it->filepath, session->web_cookie);
             } else {
                 // File
                 std::cout << "Downloading file: " << target_name << "...\n";
-                (void)moodle_client_.download_file(it->url, target_name, session->web_cookie);
+                (void)moodle_client_.download_file(file_url_with_token(it->url), target_name, session->web_cookie);
             }
         }
 
@@ -73,6 +78,10 @@ public:
     }
 
 private:
+    std::string file_url_with_token(const std::string& url) {
+        return url;
+    }
+
     void download_recursive(const std::string& remote_path, const std::string& base_remote_path, const std::string& cookie) {
         auto files = moodle_client_.list_files("", remote_path);
         if (!files) return;
@@ -106,7 +115,7 @@ private:
     moodle::MoodleClient& moodle_client_;
     core::SessionManager& session_manager_;
     std::vector<std::string> filenames_;
-    bool recursive_;
+    bool use_zip_;
 };
 
 } // namespace mstorage::commands

@@ -346,11 +346,7 @@ void TuiApplication::perform_upload() {
         for (const auto& local_path : paths_to_upload) {
             std::expected<void, std::error_code> res;
             if (std::filesystem::is_directory(local_path)) {
-                if (context_.upload_recursive) {
-                    res = upload_recursive(local_path, parent_path);
-                } else {
-                    continue;
-                }
+                res = upload_recursive(local_path, parent_path);
             } else {
                 res = upload_single_file(local_path.string(), parent_path);
             }
@@ -420,26 +416,69 @@ void TuiApplication::perform_download() {
             items_to_download.push_back(context_.files[context_.selected]);
         }
 
+        std::function<std::expected<void, std::error_code>(const std::string&, const std::string&, const std::string&)> download_recursive = 
+            [&](const std::string& remote_path, const std::string& base_remote_path, const std::string& local_target_base) -> std::expected<void, std::error_code> {
+                auto files = client->list_files(session->web_cookie, remote_path);
+                if (!files) return std::unexpected(files.error());
+
+                for (const auto& file : *files) {
+                    if (file.filename == ".") {
+                        if (file.filepath != remote_path) {
+                            auto r = download_recursive(file.filepath, base_remote_path, local_target_base);
+                            if (!r) return r;
+                        }
+                    } else {
+                        std::string rel = file.filepath.substr(base_remote_path.length());
+                        std::filesystem::path local_dir = std::filesystem::path(local_target_base);
+                        if (!rel.empty()) {
+                            local_dir /= rel;
+                        }
+                        std::filesystem::create_directories(local_dir);
+                        
+                        std::filesystem::path local_path = local_dir / file.filename;
+                        
+                        context_.download_status = "Downloading: " + (local_dir / file.filename).lexically_relative(std::filesystem::current_path()).string();
+                        context_.screen->PostEvent(ftxui::Event::Custom);
+                        
+                        auto r = client->download_file(file.url, local_path.string(), session->web_cookie);
+                        if (!r) return r;
+                    }
+                }
+                return {};
+            };
+
         std::expected<void, std::error_code> res;
         for (const auto& file : items_to_download) {
             context_.download_status = "Downloading: " + (file.size_f == "DIR" ? file.filepath : file.filename);
             context_.screen->PostEvent(ftxui::Event::Custom);
 
             if (file.size_f == "DIR") {
-                auto draft_info = client->get_draft_info(session->web_cookie);
-                if (draft_info) {
-                    auto zip_url = client->zip_folder(file.filepath, *draft_info, session->web_cookie);
-                    if (zip_url) {
-                        std::string target_file = context_.download_path;
-                        if (std::filesystem::is_directory(target_file)) {
-                            target_file = (std::filesystem::path(target_file) / (context_.get_folder_name(file.filepath) + ".zip")).string();
+                std::string target_dir = context_.download_path;
+                if (std::filesystem::is_directory(target_dir)) {
+                    target_dir = (std::filesystem::path(target_dir) / context_.get_folder_name(file.filepath)).string();
+                }
+
+                if (context_.download_use_zip) {
+                    auto draft_info = client->get_draft_info(session->web_cookie);
+                    if (draft_info) {
+                        auto zip_url = client->zip_folder(file.filepath, *draft_info, session->web_cookie);
+                        if (zip_url) {
+                            std::string target_zip = target_dir;
+                            if (std::filesystem::path(target_zip).extension() != ".zip") {
+                                target_zip += ".zip";
+                            }
+                            res = client->download_file(*zip_url, target_zip, session->web_cookie);
+                        } else {
+                            std::filesystem::create_directories(target_dir);
+                            res = download_recursive(file.filepath, file.filepath, target_dir);
                         }
-                        res = client->download_file(*zip_url, target_file, session->web_cookie);
                     } else {
-                        res = std::unexpected(std::make_error_code(std::errc::not_supported));
+                        std::filesystem::create_directories(target_dir);
+                        res = download_recursive(file.filepath, file.filepath, target_dir);
                     }
                 } else {
-                    res = std::unexpected(std::make_error_code(std::errc::permission_denied));
+                    std::filesystem::create_directories(target_dir);
+                    res = download_recursive(file.filepath, file.filepath, target_dir);
                 }
             } else {
                 std::string target_file = context_.download_path;
@@ -835,9 +874,9 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
                 if (!context_.files.empty() && context_.selected < static_cast<int>(context_.files.size())) {
                     const auto& file = context_.files[context_.selected];
                     if (file.filepath == "/" && file.filename == "/") {
-                        context_.download_path = "moodle_root.zip";
+                        context_.download_path = "moodle_root";
                     } else if (file.size_f == "DIR") {
-                        context_.download_path = context_.get_folder_name(file.filepath) + ".zip";
+                        context_.download_path = context_.get_folder_name(file.filepath);
                     } else {
                         context_.download_path = file.filename;
                     }

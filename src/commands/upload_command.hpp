@@ -14,10 +14,10 @@ class UploadCommand : public Command {
 public:
     UploadCommand(moodle::MoodleClient& moodle_client, core::SessionManager& session_manager, 
                   storage::HistoryManager& history_manager, std::vector<std::string> file_paths, 
-                  std::string remote_path, bool recursive)
+                  std::string remote_path)
         : moodle_client_(moodle_client), session_manager_(session_manager), 
           history_manager_(history_manager), file_paths_(std::move(file_paths)), 
-          remote_path_(std::move(remote_path)), recursive_(recursive) {}
+          remote_path_(std::move(remote_path)) {}
 
     std::expected<void, std::error_code> execute() override {
         auto session = session_manager_.load();
@@ -34,12 +34,8 @@ public:
             }
 
             if (std::filesystem::is_directory(path)) {
-                if (recursive_) {
-                    auto res = upload_recursive(path, remote_path_, *draft_info);
-                    if (!res) return std::unexpected(res.error());
-                } else {
-                    std::cerr << "Warning: Skipping directory (use -r to upload recursive): " << path << "\n";
-                }
+                auto res = upload_recursive(path, remote_path_, *draft_info);
+                if (!res) return std::unexpected(res.error());
             } else {
                 auto res = upload_single_file(path, remote_path_, *draft_info);
                 if (!res) return std::unexpected(res.error());
@@ -86,7 +82,6 @@ private:
     storage::HistoryManager& history_manager_;
     std::vector<std::string> file_paths_;
     std::string remote_path_;
-    bool recursive_;
     int uploaded_count_ = 0;
 };
 

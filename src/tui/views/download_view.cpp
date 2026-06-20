@@ -6,20 +6,44 @@ namespace mstorage::tui::views {
 
 ftxui::Component CreateDownloadView(TuiContext& ctx) {
     auto input_download = ftxui::Input(&ctx.download_path, "Target local path");
+    
+    auto has_dirs_lambda = [&ctx]() {
+        bool has_dirs = false;
+        if (!ctx.selected_paths.empty()) {
+            for (const auto& file : ctx.all_files) {
+                std::string item_key = file.filepath + "/" + file.filename;
+                if (ctx.selected_paths.contains(item_key) && file.size_f == "DIR") {
+                    has_dirs = true;
+                    break;
+                }
+            }
+        } else if (!ctx.files.empty() && ctx.selected < static_cast<int>(ctx.files.size())) {
+            if (ctx.files[ctx.selected].size_f == "DIR") {
+                has_dirs = true;
+            }
+        }
+        return has_dirs;
+    };
+
+    auto chk_zip = ftxui::Checkbox("Compress folder(s) into ZIP on server", &ctx.download_use_zip);
+    auto chk_zip_maybe = ftxui::Maybe(chk_zip, has_dirs_lambda);
+
     auto btn_download_ok = ftxui::Button("Download", [&ctx]() {
         if (ctx.perform_download_cb) ctx.perform_download_cb();
     }, ctx.make_button_option(true));
+    
     auto btn_download_cancel = ftxui::Button("Cancel", [&ctx]() {
         ctx.close_dialog();
     }, ctx.make_button_option(false));
 
     auto download_container = ftxui::Container::Vertical({
         input_download,
+        chk_zip_maybe,
         btn_download_ok,
         btn_download_cancel
     });
 
-    return ftxui::Renderer(download_container, [input_download, btn_download_ok, btn_download_cancel, &ctx]() {
+    return ftxui::Renderer(download_container, [input_download, chk_zip_maybe, btn_download_ok, btn_download_cancel, &ctx]() {
         std::string title_txt = ctx.selected_paths.empty() ? " Download File/Folder " : std::format(" Download {} Selected Items ", ctx.selected_paths.size());
         std::string target_msg = "";
         if (!ctx.selected_paths.empty()) {
@@ -33,6 +57,7 @@ ftxui::Component CreateDownloadView(TuiContext& ctx) {
             ftxui::vbox({
                 ftxui::text("Downloading " + target_msg + " to:"),
                 input_download->Render() | ftxui::border,
+                chk_zip_maybe->Render(),
                 ftxui::separator() | ftxui::color(ctx.theme.div_line),
                 ftxui::hbox({
                     btn_download_ok->Render(),
