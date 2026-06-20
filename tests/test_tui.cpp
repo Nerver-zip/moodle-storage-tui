@@ -457,7 +457,7 @@ TEST_F(TuiTest, VirtualRootFolderTreeAndInteraction) {
     bool return_root = component->OnEvent(ftxui::Event::Return);
     EXPECT_TRUE(return_root);
     EXPECT_EQ(get_active_tab(app), 5); // active_tab_ should be 5 (Download Dialog)
-    EXPECT_EQ(get_download_path(app), "moodle_root"); // should suggest moodle_root without .zip
+    EXPECT_EQ(get_download_path(app), (std::filesystem::current_path() / "moodle_root").string()); // should suggest absolute path of moodle_root without .zip
 }
 
 TEST_F(TuiTest, HierarchicalDirectorySelectionTest) {
@@ -555,6 +555,71 @@ TEST_F(TuiTest, HierarchicalDirectorySelectionTest) {
     EXPECT_FALSE(get_selected_paths(app).contains(key_sub));
     EXPECT_FALSE(get_selected_paths(app).contains(key_file1));
     EXPECT_FALSE(get_selected_paths(app).contains(key_file2));
+}
+
+TEST_F(TuiTest, DownloadDialogLocalBrowserNavigation) {
+    auto old_path = std::filesystem::current_path();
+    auto test_root = temp_dir / "local_download_test";
+    std::filesystem::create_directories(test_root / "subdir");
+    {
+        std::ofstream f1(test_root / "file1.txt");
+        f1 << "hello";
+    }
+
+    std::filesystem::current_path(test_root);
+
+    SessionManager sm;
+    TuiApplication app(sm, mock_http, *hm);
+    
+    mstorage::models::MoodleFile root;
+    root.filename = "/";
+    root.filepath = "/";
+    root.size_f = "DIR";
+    
+    mstorage::models::MoodleFile file1;
+    file1.filename = "test.txt";
+    file1.filepath = "/";
+    file1.size_f = "10B";
+    
+    get_all_files(app) = {root, file1};
+    get_loading(app) = false;
+    update_visible_files(app);
+
+    auto component = app.get_root_component();
+
+    get_selected(app) = 1;
+    bool return_pressed = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(return_pressed);
+    EXPECT_EQ(get_active_tab(app), 5); // Download Dialog
+
+    EXPECT_EQ(get_download_path(app), (test_root / "test.txt").string());
+
+    auto& ctx = get_context(app);
+
+    bool tab1 = component->OnEvent(ftxui::Event::Tab);
+    EXPECT_TRUE(tab1);
+    EXPECT_EQ(ctx.download_container->ActiveChild(), ctx.download_local_files_menu);
+
+    bool arrow_down = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(arrow_down);
+
+    EXPECT_EQ(get_download_path(app), (test_root / "subdir").string());
+
+    bool arrow_down2 = component->OnEvent(ftxui::Event::ArrowDown);
+    EXPECT_TRUE(arrow_down2);
+    EXPECT_EQ(get_download_path(app), (test_root / "file1.txt").string());
+
+    bool arrow_up = component->OnEvent(ftxui::Event::ArrowUp);
+    EXPECT_TRUE(arrow_up); // subdir
+    bool arrow_up2 = component->OnEvent(ftxui::Event::ArrowUp);
+    EXPECT_TRUE(arrow_up2); // .. (Go up)
+    
+    bool return_up = component->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(return_up);
+
+    EXPECT_EQ(ctx.current_local_dir, test_root.parent_path());
+
+    std::filesystem::current_path(old_path);
 }
 
 

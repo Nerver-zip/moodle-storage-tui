@@ -110,6 +110,8 @@ public:
     // Shared components for testing
     ftxui::Component upload_container;
     ftxui::Component local_files_menu;
+    ftxui::Component download_container;
+    ftxui::Component download_local_files_menu;
 
     TuiContext(core::SessionManager& sm, network::HttpClient& hc, storage::HistoryManager& hm);
 

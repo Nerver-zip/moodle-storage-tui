@@ -685,11 +685,19 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
                                 break;
                             }
                         }
-                        size_t next_idx;
-                        if (event == ftxui::Event::Tab) {
-                            next_idx = (current_idx + 1) % count;
-                        } else {
-                            next_idx = (current_idx + count - 1) % count;
+                        size_t next_idx = current_idx;
+                        for (size_t step = 1; step <= count; ++step) {
+                            size_t candidate_idx;
+                            if (event == ftxui::Event::Tab) {
+                                candidate_idx = (current_idx + step) % count;
+                            } else {
+                                candidate_idx = (current_idx + count - step) % count;
+                            }
+                            auto child = context_.upload_container->ChildAt(candidate_idx);
+                            if (child && child->Focusable()) {
+                                next_idx = candidate_idx;
+                                break;
+                            }
                         }
                         context_.upload_container->SetActiveChild(context_.upload_container->ChildAt(next_idx));
                         return true;
@@ -746,6 +754,94 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
                                 context_.expanded_local_dirs.insert(node.path);
                             }
                             context_.update_local_nodes();
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+
+        if (context_.active_tab == 5) {
+            if (event == ftxui::Event::Escape) {
+                context_.close_dialog();
+                return true;
+            }
+            if (event == ftxui::Event::Tab || event == ftxui::Event::TabReverse) {
+                if (context_.download_container) {
+                    auto active = context_.download_container->ActiveChild();
+                    size_t count = context_.download_container->ChildCount();
+                    if (count > 0) {
+                        size_t current_idx = 0;
+                        for (size_t i = 0; i < count; ++i) {
+                            if (context_.download_container->ChildAt(i) == active) {
+                                current_idx = i;
+                                break;
+                            }
+                        }
+                        size_t next_idx = current_idx;
+                        for (size_t step = 1; step <= count; ++step) {
+                            size_t candidate_idx;
+                            if (event == ftxui::Event::Tab) {
+                                candidate_idx = (current_idx + step) % count;
+                            } else {
+                                candidate_idx = (current_idx + count - step) % count;
+                            }
+                            auto child = context_.download_container->ChildAt(candidate_idx);
+                            if (child && child->Focusable()) {
+                                next_idx = candidate_idx;
+                                break;
+                            }
+                        }
+                        context_.download_container->SetActiveChild(context_.download_container->ChildAt(next_idx));
+                        return true;
+                    }
+                }
+            }
+            
+            if (context_.download_container && context_.download_local_files_menu && context_.download_container->ActiveChild() == context_.download_local_files_menu) {
+                if (event == ftxui::Event::ArrowRight) {
+                    if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                        const auto& node = context_.visible_local_nodes[context_.selected_local_node];
+                        if (node.is_parent) {
+                            context_.go_up_local_dir();
+                        } else if (node.is_directory) {
+                            context_.expanded_local_dirs.insert(node.path);
+                            context_.update_local_nodes();
+                        }
+                        if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                            context_.download_path = context_.visible_local_nodes[context_.selected_local_node].path.string();
+                        }
+                    }
+                    return true;
+                }
+                if (event == ftxui::Event::ArrowLeft) {
+                    if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                        const auto& node = context_.visible_local_nodes[context_.selected_local_node];
+                        if (!node.is_parent && node.is_directory) {
+                            context_.expanded_local_dirs.erase(node.path);
+                            context_.update_local_nodes();
+                        }
+                        if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                            context_.download_path = context_.visible_local_nodes[context_.selected_local_node].path.string();
+                        }
+                    }
+                    return true;
+                }
+                if (event == ftxui::Event::Return) {
+                    if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                        const auto& node = context_.visible_local_nodes[context_.selected_local_node];
+                        if (node.is_parent) {
+                            context_.go_up_local_dir();
+                        } else if (node.is_directory) {
+                            if (context_.expanded_local_dirs.contains(node.path)) {
+                                context_.expanded_local_dirs.erase(node.path);
+                            } else {
+                                context_.expanded_local_dirs.insert(node.path);
+                            }
+                            context_.update_local_nodes();
+                        }
+                        if (context_.selected_local_node >= 0 && context_.selected_local_node < static_cast<int>(context_.visible_local_nodes.size())) {
+                            context_.download_path = context_.visible_local_nodes[context_.selected_local_node].path.string();
                         }
                     }
                     return true;
@@ -922,19 +1018,30 @@ ftxui::Component TuiApplication::get_root_component(std::function<void()> exit_c
             }
             if (event == ftxui::Event::Return) {
                 if (!context_.selected_paths.empty()) {
-                    context_.download_path = ".";
+                    context_.current_local_dir = std::filesystem::current_path();
+                    context_.expanded_local_dirs.clear();
+                    context_.selected_local_node = 0;
+                    context_.update_local_nodes();
+
+                    context_.download_path = std::filesystem::current_path().string();
                     context_.download_status = "";
                     context_.active_tab = 5; // Download Dialog
                     return true;
                 }
                 if (!context_.files.empty() && context_.selected < static_cast<int>(context_.files.size())) {
                     const auto& file = context_.files[context_.selected];
+                    
+                    context_.current_local_dir = std::filesystem::current_path();
+                    context_.expanded_local_dirs.clear();
+                    context_.selected_local_node = 0;
+                    context_.update_local_nodes();
+
                     if (file.filepath == "/" && file.filename == "/") {
-                        context_.download_path = "moodle_root";
+                        context_.download_path = (std::filesystem::current_path() / "moodle_root").string();
                     } else if (file.size_f == "DIR") {
-                        context_.download_path = context_.get_folder_name(file.filepath);
+                        context_.download_path = (std::filesystem::current_path() / context_.get_folder_name(file.filepath)).string();
                     } else {
-                        context_.download_path = file.filename;
+                        context_.download_path = (std::filesystem::current_path() / file.filename).string();
                     }
                     context_.download_status = "";
                     context_.active_tab = 5; // Download Dialog
