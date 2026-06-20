@@ -2,6 +2,7 @@
 #include "command.hpp"
 #include "moodle/moodle_client.hpp"
 #include "core/session_manager.hpp"
+#include "core/session_helper.hpp"
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -17,35 +18,17 @@ public:
           target_names_(std::move(target_names)), remote_path_(std::move(remote_path)), recursive_(recursive) {}
 
     std::expected<void, std::error_code> execute() override {
-        auto session = session_manager_.load();
-        if (!session) return std::unexpected(session.error());
-
-        std::cout << "Fetching draft info...\n";
-        
-        // Use web cookie for high-fidelity folder deletion (AJAX)
-        std::string active_cookie = session->web_cookie;
-        auto draft_info = moodle_client_.get_draft_info(active_cookie);
-        
-        // If web cookie expired, try refresh if credentials exist
+        auto draft_info = core::ensure_web_session(moodle_client_, session_manager_);
         if (!draft_info) {
-            auto creds = session_manager_.load_credentials(session->moodle_url);
-            if (creds && !creds->username.empty() && !creds->password.empty()) {
-                auto refreshed = moodle_client_.refresh_web_session(creds->username, creds->password);
-                if (refreshed) {
-                    active_cookie = *refreshed;
-                    session->web_cookie = active_cookie;
-                    (void)session_manager_.save(*session);
-                    draft_info = moodle_client_.get_draft_info(active_cookie);
-                }
-            }
-        }
-
-        // Final fallback to REST draft info if AJAX still failing (or no cookie)
-        if (!draft_info) {
+            std::cerr << "Warning: Session expired or invalid. Falling back to REST (may fail deleting folders).\n";
             draft_info = moodle_client_.get_draft_info();
         }
 
         if (!draft_info) return std::unexpected(draft_info.error());
+
+        auto session = session_manager_.load();
+        if (!session) return std::unexpected(session.error());
+        std::string active_cookie = session->web_cookie;
 
         std::cout << "Deleting " << target_names_.size() << " item(s) from " << remote_path_ << "\n";
         

@@ -86,6 +86,12 @@ public:
         if (!cookie_to_use.empty()) {
             auto response = client_.get(moodle_url_ + "/user/files.php", cpr::Cookies{{"MoodleSession", cookie_to_use}});
             if (response) {
+                if (response->find("idpv3.ufpel.edu.br") != std::string::npos || 
+                    response->find("loginuserpass") != std::string::npos ||
+                    response->find("Portal de autenticação UFPel") != std::string::npos) {
+                    return std::unexpected(std::make_error_code(std::errc::permission_denied));
+                }
+
                 DraftInfo info;
                 std::regex sesskey_regex("\"sesskey\"\\s*:\\s*\"([^\"]+)\"");
                 std::smatch match;
@@ -183,6 +189,13 @@ public:
         std::string cookie_to_use = specific_cookie.empty() ? web_cookie_ : specific_cookie;
         auto response = client_.get(url, cookie_to_use.empty() ? cpr::Cookies{} : cpr::Cookies{{"MoodleSession", cookie_to_use}});
         if (!response) return std::unexpected(response.error());
+
+        if (response->find("idpv3.ufpel.edu.br") != std::string::npos || 
+            response->find("loginuserpass") != std::string::npos ||
+            response->find("Portal de autenticação UFPel") != std::string::npos) {
+            return std::unexpected(std::make_error_code(std::errc::permission_denied));
+        }
+
         std::ofstream file(output_path, std::ios::binary);
         if (!file.is_open()) return std::unexpected(std::make_error_code(std::errc::io_error));
         file.write(response->data(), response->size());

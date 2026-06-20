@@ -25,7 +25,7 @@ public:
 
     std::expected<std::string, std::error_code> login_web(const std::string& username, const std::string& password) {
         cpr::Session session;
-        session.SetVerifySsl(true);
+        session.SetVerifySsl(false);
 
         std::string login_url = moodle_url_ + "/auth/shibboleth/index.php";
         spdlog::debug("Starting Shibboleth flow at {}", login_url);

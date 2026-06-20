@@ -1,6 +1,7 @@
 #include "tui_application.hpp"
 #include "views/views.hpp"
 #include "moodle/shibboleth_auth.hpp"
+#include "core/session_helper.hpp"
 #include <ftxui/component/screen_interactive.hpp>
 #include <spdlog/spdlog.h>
 
@@ -213,20 +214,15 @@ void TuiApplication::perform_mkdir() {
             return;
         }
 
-        auto session = context_.session_manager.load();
-        auto draft_info = client->get_draft_info(session->web_cookie);
-        if (!draft_info) {
-            auto creds = context_.session_manager.load_credentials(session->moodle_url);
-            if (creds && !creds->username.empty() && !creds->password.empty()) {
-                auto refreshed = client->refresh_web_session(creds->username, creds->password);
-                if (refreshed) {
-                    session->web_cookie = *refreshed;
-                    (void)context_.session_manager.save(*session);
-                    draft_info = client->get_draft_info(session->web_cookie);
-                }
-            }
+        auto web_res = core::ensure_web_session(*client, context_.session_manager);
+        if (!web_res) {
+            context_.mkdir_status = "Session expired. Please login again.";
+            context_.screen->PostEvent(ftxui::Event::Custom);
+            return;
         }
 
+        auto session = context_.session_manager.load();
+        auto draft_info = client->get_draft_info(session->web_cookie);
         if (!draft_info) {
             draft_info = client->get_draft_info();
         }
@@ -299,10 +295,17 @@ void TuiApplication::perform_upload() {
             return;
         }
 
+        auto web_res = core::ensure_web_session(*client, context_.session_manager);
+        if (!web_res) {
+            context_.upload_status = "Session expired. Please login again.";
+            context_.screen->PostEvent(ftxui::Event::Custom);
+            return;
+        }
+
         auto session = context_.session_manager.load();
         auto draft_info = client->get_draft_info(session->web_cookie);
         if (!draft_info) {
-            context_.upload_status = "Failed to get draft info: " + draft_info.error().message();
+            context_.upload_status = "Failed to get draft info.";
             context_.screen->PostEvent(ftxui::Event::Custom);
             return;
         }
@@ -391,6 +394,13 @@ void TuiApplication::perform_download() {
             return;
         }
 
+        auto web_res = core::ensure_web_session(*client, context_.session_manager);
+        if (!web_res) {
+            context_.download_status = "Session expired. Please login again.";
+            context_.screen->PostEvent(ftxui::Event::Custom);
+            return;
+        }
+
         auto session = context_.session_manager.load();
         std::vector<models::MoodleFile> items_to_download;
         
@@ -465,23 +475,17 @@ void TuiApplication::perform_delete() {
             return;
         }
 
+        auto web_res = core::ensure_web_session(*client, context_.session_manager);
+        if (!web_res) {
+            context_.delete_status = "Session expired. Please login again.";
+            context_.screen->PostEvent(ftxui::Event::Custom);
+            return;
+        }
+
         auto session = context_.session_manager.load();
         std::string active_cookie = session->web_cookie;
         
         auto draft_info = client->get_draft_info(active_cookie);
-        if (!draft_info) {
-            auto creds = context_.session_manager.load_credentials(session->moodle_url);
-            if (creds && !creds->username.empty() && !creds->password.empty()) {
-                auto refreshed = client->refresh_web_session(creds->username, creds->password);
-                if (refreshed) {
-                    active_cookie = *refreshed;
-                    session->web_cookie = active_cookie;
-                    (void)context_.session_manager.save(*session);
-                    draft_info = client->get_draft_info(active_cookie);
-                }
-            }
-        }
-
         if (!draft_info) {
             draft_info = client->get_draft_info();
         }

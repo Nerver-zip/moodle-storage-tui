@@ -2,6 +2,7 @@
 #include "command.hpp"
 #include "moodle/moodle_client.hpp"
 #include "core/session_manager.hpp"
+#include "core/session_helper.hpp"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -18,15 +19,18 @@ public:
           filenames_(std::move(filenames)), recursive_(recursive) {}
 
     std::expected<void, std::error_code> execute() override {
+        auto draft_info = core::ensure_web_session(moodle_client_, session_manager_);
+        if (!draft_info) {
+            std::cerr << "Session expired or invalid. Please login again using 'mstorage login'.\n";
+            return std::unexpected(draft_info.error());
+        }
+
         auto session = session_manager_.load();
         if (!session) return std::unexpected(session.error());
 
         std::cout << "Fetching file list...\n";
         auto files = moodle_client_.list_files();
         if (!files) return std::unexpected(files.error());
-
-        // Get draft info for potential ZIP compression (AJAX)
-        auto draft_info = moodle_client_.get_draft_info(session->web_cookie);
 
         for (const auto& target_name : filenames_) {
             auto it = std::find_if(files->begin(), files->end(), [&](const models::MoodleFile& f) {

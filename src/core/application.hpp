@@ -23,6 +23,7 @@ namespace mstorage::core {
 class Application {
 public:
     Application() : app_("Moodle Storage TUI") {
+        utils::Logger::init();
         setup_commands();
     }
 

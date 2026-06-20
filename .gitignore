@@ -25,4 +25,4 @@ cmake/CPM_*.cmake
 
 # Local development files
 dev/
-.gemini/
+.agents/

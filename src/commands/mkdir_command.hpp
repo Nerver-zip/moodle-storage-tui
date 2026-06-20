@@ -2,6 +2,7 @@
 #include "command.hpp"
 #include "moodle/moodle_client.hpp"
 #include "core/session_manager.hpp"
+#include "core/session_helper.hpp"
 #include <iostream>
 #include <fstream>
 
@@ -13,12 +14,14 @@ public:
         : moodle_client_(moodle_client), session_manager_(session_manager), folder_name_(std::move(folder_name)) {}
 
     std::expected<void, std::error_code> execute() override {
+        auto draft_info = core::ensure_web_session(moodle_client_, session_manager_);
+        if (!draft_info) {
+            std::cerr << "Session expired or invalid. Please login again using 'mstorage login'.\n";
+            return std::unexpected(draft_info.error());
+        }
+
         auto session = session_manager_.load();
         if (!session) return std::unexpected(session.error());
-
-        std::cout << "Fetching draft info...\n";
-        auto draft_info = moodle_client_.get_draft_info(session->web_cookie);
-        if (!draft_info) return std::unexpected(draft_info.error());
 
         std::cout << "Creating folder: " << folder_name_ << "\n";
         auto res = moodle_client_.create_folder(folder_name_, "/", *draft_info, session->web_cookie);
