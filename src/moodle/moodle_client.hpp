@@ -23,6 +23,7 @@ public:
     void set_wstoken(const std::string& token) {
         wstoken_ = token;
         use_wstoken_ = !token.empty();
+        cached_context_id_ = 0;
     }
 
     void set_web_cookie(const std::string& cookie) {

@@ -139,7 +139,8 @@ public:
         auto r4 = cpr::Get(
             cpr::Url{launch_url}, 
             cpr::Cookies{{"MoodleSession", moodle_session_cookie}},
-            cpr::Redirect{0L}
+            cpr::Redirect{0L},
+            cpr::VerifySsl{false}
         );
         
         std::string location = "";

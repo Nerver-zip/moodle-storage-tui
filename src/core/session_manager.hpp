@@ -33,8 +33,6 @@ public:
 
         secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "wstoken", nullptr);
         secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "web_cookie", nullptr);
-        
-        secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "credentials", nullptr);
 
         // Save wstoken
         if (!data.wstoken.empty()) {
@@ -56,6 +54,7 @@ public:
 
         // Save Credentials
         if (!username.empty() && !password.empty()) {
+            secret_password_clear_sync(get_schema(), nullptr, &error, "moodle_url", data.moodle_url.c_str(), "type", "credentials", nullptr);
             secret_password_store_sync(
                 get_schema(), SECRET_COLLECTION_DEFAULT, "Moodle Storage Credentials",
                 password.c_str(), nullptr, &error,

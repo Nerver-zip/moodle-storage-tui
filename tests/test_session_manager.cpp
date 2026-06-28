@@ -15,6 +15,8 @@ protected:
     }
 
     void TearDown() override {
+        SessionManager manager;
+        manager.clear_credentials();
         std::filesystem::remove_all(temp_dir);
     }
 

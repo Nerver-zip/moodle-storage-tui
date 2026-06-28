@@ -80,8 +80,26 @@ void TuiApplication::trigger_refresh() {
 
     refresh_thread_ = std::thread([this, session]() {
         moodle::MoodleClient client(context_.http_client, session->moodle_url);
-        client.set_wstoken(session->wstoken);
-        client.set_web_cookie(session->web_cookie);
+        
+        // Validar e renovar sessão de forma robusta e transparente
+        auto web_res = core::ensure_web_session(client, context_.session_manager);
+        if (!web_res) {
+            spdlog::error("Failed to validate/refresh session on startup: {}", web_res.error().message());
+            {
+                std::lock_guard<std::mutex> lock(context_.data_mutex);
+                context_.active_tab = 1; // Tela de login
+                context_.login_status = "Sessão expirada. Por favor, autentique-se novamente.";
+                context_.loading = false;
+            }
+            if (context_.screen) {
+                context_.screen->PostEvent(ftxui::Event::Custom);
+            }
+            return;
+        }
+
+        // Carrega a sessão atualizada após ensure_web_session
+        auto updated_session = context_.session_manager.load();
+        std::string cookie_to_use = updated_session ? updated_session->web_cookie : session->web_cookie;
         
         std::vector<models::MoodleFile> all_files;
         
@@ -94,8 +112,8 @@ void TuiApplication::trigger_refresh() {
         root_dir.datemodified = 0;
         all_files.push_back(root_dir);
 
-        fetch_recursive_all(client, session->web_cookie, "/", all_files);
-        auto fuse = client.get_usage(session->web_cookie);
+        fetch_recursive_all(client, cookie_to_use, "/", all_files);
+        auto fuse = client.get_usage(cookie_to_use);
         
         {
             std::lock_guard<std::mutex> lock(context_.data_mutex);

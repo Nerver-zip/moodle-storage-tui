@@ -37,6 +37,8 @@ protected:
     }
 
     void TearDown() override {
+        SessionManager sm;
+        sm.clear_credentials();
         std::filesystem::remove_all(temp_dir);
     }
 
@@ -145,6 +147,8 @@ TEST_F(CommandTest, MkdirCommandOrchestration) {
     MoodleClient client{mock_http, "https://moodle.test"};
     client.set_web_cookie("cookie");
 
+    EXPECT_CALL(mock_http, post(::testing::Eq("https://moodle.test/webservice/rest/server.php"), _, _))
+        .WillOnce(Return(std::string(R"({"userid":10330,"userpictureurl":"https://m.com/pluginfile.php/23694/user/icon"})")));
     EXPECT_CALL(mock_http, get(_, _)).WillOnce(Return(std::string(R"("sesskey":"k","contextid":1 <input name="files_filemanager" value="1">)")));
     EXPECT_CALL(mock_http, post(std::string("https://moodle.test/repository/draftfiles_ajax.php?action=mkdir"), _, _))
         .WillOnce(Return(std::string("{}")));
